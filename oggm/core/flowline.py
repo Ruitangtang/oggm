@@ -1552,6 +1552,251 @@ def k_calving_law(model, flowline, last_above_wl):
     return q_calving
 
 
+def FA_Sermeq_speed_law(profile, model_velocity,v_scaling=1, Terminus_mb=0, verbose=False,
+                     tau0=150e3, yield_type='constant', mu=0.01,
+                     trim_profile=0):
+    """
+    This function is used to calculate frontal ablation given ice speed forcing,
+    for lake-terminating and tidewater glaciers
+
+    @author: Ruitang Yang & Lizz Ultee
+
+    Authors: Ruitang Yang & Lizz Ultee
+    Parameters
+    ----------
+    model : oggm.core.flowline.FlowlineModel
+        the model instance calling the function
+    flowline : oggm.core.flowline.Flowline
+        the instance of the flowline object on which the calving law is called
+    last_above_wl : int
+        the index of the last pixel above water (in case you need to know
+        where it is).
+
+    profile: NDarray
+        The current profile (x, surface, bed) as calculated by the base model
+        Unlike core SERMeQ, these should be DIMENSIONAL [m].
+    model_velocity: array
+        Velocity along the flowline [m/a] as calculated by the base model
+        Should have values for the points nearest the terminus...otherwise
+        doesn't matter if this is the same shape as the profile array.
+        TODO: Check with the remote sensing products, or at least to validate the model products
+    v_scaling: float
+        velocity scaling factor, >0, default is 1
+    Terminus_mb : array
+        Mass balance along the flowline or nearest the terminus [m/a]. Default None...
+        TODO: set default behavior, check the unit meter of ice per year or m w.e. per year?
+    verbose: Boolean, optional
+        Whether to print component parts for inspection.  Default False.
+
+    tau0: float, optional
+        This glacier's yield strength [Pa]. Default is 150 kPa.
+    yield_type: str, optional
+        'constant' or 'variable' (Mohr-Coulomb) yielding. Default is constant.
+    mu: float, optional
+        Mohr-Coulomb cohesion, a coefficient between 0 and 1. Default is 0.01.
+        Only used if we have variable yield
+
+    trim_profile: int, optional
+        How many grid cells at the end of the profile to ignore.  Default is 1.
+        If the initial profile is set by k-calving (as in testing) there can be a
+        weird cliff shape with very thin final grid point and large velocity gradient
+
+    Returns
+    -------
+    fa_viscoplastic: float
+        Frontal ablation rate [m/a] based on viscoplastic assumptions
+    SQFA: dict
+        Frontal ablation rate [m/a] based on viscoplastic assumptions
+        serface elevation at the terminus [m a.s.l.] based on OGGM ## TODO CHANGE IT BY PyGEM Surface mass balance result
+        bed elevation at the terminus [m a.s.l.]
+        Terminus Thickness [m]
+        Yield terminus thickness [m]
+        Velocity at the terminus [m/a]
+        Surface mass balance at the terminus [m/a]
+        Length change at the terminus [m/a] based on viscoplastic assumptions
+        TODO: output the length change in case we
+         have the length change results from observations in-situ or remote sensing (Thomas Schellenberger has the machine learning products)
+        Frontal ablation rate [m/a] based on viscoplastic assumptions
+
+    Explanation of sign
+    -------
+    fa_viscoplastic: negative, mass loss
+    dLdt: length change rate, positive if advance; negative if retreat
+    terminus mass balance: negative if mass loss; positive if mass gain
+    """
+    # ---------------------------------------------------------------------------
+    ## Global constants
+    G = 9.8  # acceleration due to gravity in m/s^2
+    RHO_ICE = 920.0  # ice density kg/m^3
+    RHO_SEA = 1020.0  # seawater density kg/m^3
+
+    # ---------------------------------------------------------------------------
+    # the yield strength
+    def tau_y(tau0=150e3, yield_type='constant', bed_elev=None, thick=None, mu=0.01):
+        """
+        Functional form of yield strength.
+        Can do constant or Mohr-Coulomb yield strength.  Ideally, the glacier's yield type
+        ('constant' or 'variable') would be saved in a model instance.
+
+        Parameters
+        ----------
+        tau0: float, optional
+            Initial guess for yield strength [Pa]. Default is 150 kPa.
+        yield_type: str, optional
+            'constant' or 'variable' (Mohr-Coulomb) yielding. Default is constant.
+        bed_elev: float, optional
+            Bed elevation, dimensional [m]. The default is None.
+        thick: float, optional
+            Ice thickness, dimensional [m]. The default is None.
+        mu: float, optional
+            Mohr-Coulomb cohesion, a coefficient between 0 and 1. Default is 0.01.
+
+        Returns
+        -------
+        tau_y: float
+            The yield strength for these conditions.
+        """
+        if yield_type == 'variable':
+            try:
+                if bed_elev < 0:
+                    D = -1 * bed_elev  # Water depth D the nondim bed topography value when Z<0
+                else:
+                    D = 0
+            except:
+                print('You must set a bed elevation and ice thickness to use variable yield strength.')
+            N = RHO_ICE * G * thick - RHO_SEA * G * D  # Normal stress at bed
+            ty = tau0 + mu * N
+        else:  # assume constant if not set
+            ty = tau0
+        return ty
+
+
+    # ---------------------------------------------------------------------------
+    # calculate the yield ice thickness
+    def balance_thickness(yield_strength, bed_elev):
+        """
+        Ice thickness such that the stress matches the yield strength.
+
+        Parameters
+        ----------
+        yield_strength: float
+            The yield strength near the terminus.
+            If yield type is constant, this will of course be the same everywhere.  If yield type is
+            variable (Mohr-Coulomb), the yield strength at the terminus could differ from elsewhere.
+        bed_elev: float
+            Elevation of glacier bed at the terminus
+
+        Returns
+        -------
+        Hy: float
+            The ice thickness for stress balance at the terminus.
+        """
+        if bed_elev < 0:
+            D = -1 * bed_elev
+        else:
+            D = 0
+        return (2 * yield_strength / (RHO_ICE * G)) + np.sqrt(
+            (RHO_SEA * (D ** 2) / RHO_ICE) + ((2 * yield_strength / (RHO_ICE * G)) ** 1))
+        # TODO: Check on exponent on last term.  In Ultee & Bassis 2016, this is squared, but in Ultee & Bassis 2020 supplement, it isn't.
+
+    # ---------------------------------------------------------------------------
+    # calculate frontal ablation based on the ice thickness, speed at the terminus
+    last_index = -1 * (trim_profile + 1)  ## remove lowest cells if needed
+    ## TODO: Check the flowline model, the decrease the distance between two adjacent points along the flowline, and then calculate the averaged gradient for dhdx,dhydx,dudx
+    ##
+    if isinstance(Terminus_mb, (int, float)):
+        terminus_mb = Terminus_mb
+    elif isinstance(Terminus_mb, (list, np.ndarray)):
+        terminus_mb = Terminus_mb[last_index]
+    else:
+        print("please input the correct mass balance datatype")
+    #
+    if isinstance(model_velocity, (int, float)):
+        model_velocity = v_scaling * model_velocity
+    elif isinstance(model_velocity, list):
+        model_velocity = v_scaling * np.array(model_velocity)
+    elif isinstance(model_velocity, np.ndarray):
+        model_velocity = v_scaling * model_velocity
+    else:
+        print("please input the correct velocity datatype")
+    ## Ice thickness and yield thickness nearest the terminus
+    se_terminus = profile[1][last_index]
+    bed_terminus = profile[2][last_index]
+    H_terminus = se_terminus - bed_terminus
+    tau_y_terminus = tau_y(tau0=tau0, bed_elev=bed_terminus, thick=H_terminus, yield_type=yield_type)
+    Hy_terminus = balance_thickness(yield_strength=tau_y_terminus, bed_elev=bed_terminus)
+    if isinstance(model_velocity, (int, float)):
+        U_terminus = model_velocity
+        U_adj = model_velocity
+    else:
+        U_terminus = model_velocity[last_index]  ## velocity, assuming last point is terminus
+        U_adj = model_velocity[last_index - 1]
+    ## Ice thickness and yield thickness at adjacent point
+    se_adj = profile[1][last_index - 1]
+    bed_adj = profile[2][last_index - 1]
+    H_adj = se_adj - bed_adj
+    tau_y_adj = tau_y(tau0=tau0, bed_elev=bed_adj, thick=H_adj, yield_type=yield_type)
+    Hy_adj = balance_thickness(yield_strength=tau_y_adj, bed_elev=bed_adj)
+    # Gradients
+    dx_term = profile[0][last_index] - profile[0][last_index - 1]  ## check grid spacing close to terminus
+    dHdx = (H_terminus - H_adj) / dx_term
+    dHydx = (Hy_terminus - Hy_adj) / dx_term
+    if np.isnan(U_terminus) or np.isnan(U_adj):
+        dUdx = np.nan  ## velocity gradient
+        ## Group the terms
+        dLdt_numerator = np.nan
+        dLdt_denominator = np.nan  ## TODO: compute dHydx
+        dLdt_viscoplastic = np.nan
+        # fa_viscoplastic = dLdt_viscoplastic -U_terminus  ## frontal ablation rate
+        fa_viscoplastic = np.nan  ## frontal ablation rate
+    else:
+        # Gradients
+        # dx_term = profile[0][last_index] - profile[0][last_index - 1]  ## check grid spacing close to terminus
+        # dHdx = (H_terminus - H_adj) / dx_term
+        # dHydx = (Hy_terminus - Hy_adj) / dx_term
+        dUdx = (U_terminus - U_adj) / dx_term  ## velocity gradient
+        ## Group the terms
+        dLdt_numerator = terminus_mb - (H_terminus * dUdx) - (U_terminus * dHdx)
+        dLdt_denominator = dHydx - dHdx  ## TODO: compute dHydx
+        dLdt_viscoplastic = dLdt_numerator / dLdt_denominator
+        # fa_viscoplastic = dLdt_viscoplastic -U_terminus  ## frontal ablation rate
+        fa_viscoplastic = U_terminus - dLdt_viscoplastic  ## frontal ablation rate
+
+
+    SQFA = {'se_terminus': se_terminus,
+            'bed_terminus': bed_terminus,
+            'Thickness_termi': H_terminus,
+            'Hy_thickness': Hy_terminus,
+            'Velocity_termi': U_terminus,
+            'Terminus_mb': terminus_mb,
+            'dLdt': dLdt_viscoplastic,
+            'Sermeq_fa': fa_viscoplastic}
+    if verbose:
+        print('For inspection on debugging - all should be DIMENSIONAL (m/a):')
+        #         print('profile_length={}'.format(profile_length))
+        print('last_index={}'.format(last_index))
+        print('se_terminus={}'.format(se_terminus))
+        print('bed_terminus={}'.format(bed_terminus))
+        print('se_adj={}'.format(se_adj))
+        print('bed_adj={}'.format(bed_adj))
+        print('Thicknesses: Hterm {}, Hadj {}'.format(H_terminus, H_adj))
+        print('Hy_terminus={}'.format(Hy_terminus))
+        print('Hy_adj={}'.format(Hy_adj))
+        print('U_terminus={}'.format(U_terminus))
+        print('U_adj={}'.format(U_adj))
+        print('dUdx={}'.format(dUdx))
+        print('dx_term={}'.format(dx_term))
+        print('Checking dLdt: terminus_mb = {}. \n H dUdx = {}. \n U dHdx = {}.'.format(terminus_mb, dUdx * H_terminus,
+                                                                                        U_terminus * dHdx))
+        print('Denom: dHydx = {} \n dHdx = {}'.format(dHydx, dHdx))
+        print('Viscoplastic dLdt={}'.format(dLdt_viscoplastic))
+        print('Terminus surface mass balance ma= {}'.format(terminus_mb))
+        print('Sermeq frontal ablation ma={}'.format(fa_viscoplastic))
+    else:
+        pass
+    return SQFA
+
+
 class FluxBasedModel(FlowlineModel):
     """The flowline model used by OGGM in production.
 
