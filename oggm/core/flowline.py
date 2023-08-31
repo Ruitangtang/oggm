@@ -18,6 +18,8 @@ import shapely.geometry as shpg
 import xarray as xr
 from scipy.linalg import solve_banded
 
+from oggm.core import massbalance
+
 # Optional libs
 try:
     import salem
@@ -1552,7 +1554,7 @@ def k_calving_law(model, flowline, last_above_wl):
     return q_calving
 
 
-def FA_Sermeq_speed_law(profile, model_velocity,v_scaling=1, Terminus_mb=0, verbose=False,
+def fa_sermeq_speed_law(model,flowline, fl_id, last_above_wl, v_scaling=1, verbose=False,
                      tau0=150e3, yield_type='constant', mu=0.01,
                      trim_profile=0):
     """
@@ -1564,22 +1566,16 @@ def FA_Sermeq_speed_law(profile, model_velocity,v_scaling=1, Terminus_mb=0, verb
     Authors: Ruitang Yang & Lizz Ultee
     Parameters
     ----------
+
     model : oggm.core.flowline.FlowlineModel
         the model instance calling the function
     flowline : oggm.core.flowline.Flowline
         the instance of the flowline object on which the calving law is called
+    fl_id : float, optional
+        the index of the flowline in the fls array (might be ignored by some MB models)
     last_above_wl : int
         the index of the last pixel above water (in case you need to know
         where it is).
-
-    profile: NDarray
-        The current profile (x, surface, bed) as calculated by the base model
-        Unlike core SERMeQ, these should be DIMENSIONAL [m].
-    model_velocity: array
-        Velocity along the flowline [m/a] as calculated by the base model
-        Should have values for the points nearest the terminus...otherwise
-        doesn't matter if this is the same shape as the profile array.
-        TODO: Check with the remote sensing products, or at least to validate the model products
     v_scaling: float
         velocity scaling factor, >0, default is 1
     Terminus_mb : array
@@ -1673,6 +1669,7 @@ def FA_Sermeq_speed_law(profile, model_velocity,v_scaling=1, Terminus_mb=0, verb
 
     # ---------------------------------------------------------------------------
     # calculate the yield ice thickness
+
     def balance_thickness(yield_strength, bed_elev):
         """
         Ice thickness such that the stress matches the yield strength.
@@ -1701,7 +1698,35 @@ def FA_Sermeq_speed_law(profile, model_velocity,v_scaling=1, Terminus_mb=0, verb
 
     # ---------------------------------------------------------------------------
     # calculate frontal ablation based on the ice thickness, speed at the terminus
-    last_index = -1 * (trim_profile + 1)  ## remove lowest cells if needed
+    surface_m = flowline.surface_h
+    bed_m = flowline.bed_h
+    width_m = flowline.widths_mS
+    velocity_m = model.u_stag[-1]*cfg.SEC_IN_YEAR
+    x_m = flowline.dis_on_line*flowline.map_dx/1000
+
+    # gdir : py:class:`oggm.GlacierDirectory`
+    #     the glacier directory to process
+    # fls = model.gdir.read_pickle('model_flowlines')
+    # mbmod_fl = massbalance.MultipleFlowlineMassBalance(model.gdir, fls=fls, use_inversion_flowlines=True,
+    #                                                    mb_model_class=MonthlyTIModel)
+    mb_annual=model.get_annual_mb(heights=surface_m, fl_id=fl_id, year=model.yr, fls=model.fls)
+
+    Terminus_mb = mb_annual*cfg.SEC_IN_YEAR
+    # slice up to index+1 to include the last nonzero value
+    # profile: NDarray
+    #     The current profile (x, surface, bed,width) as calculated by the base model
+    #     Unlike core SERMeQ, these should be DIMENSIONAL [m].
+    profile=(x_m.values[:last_above_wl+1],
+                 surface_m.values[:last_above_wl+1],
+                 bed_m.values[:last_above_wl+1])
+    # model_velocity: array
+    #     Velocity along the flowline [m/a] as calculated by the base model
+    #     Should have values for the points nearest the terminus...otherwise
+    #     doesn't matter if this is the same shape as the profile array.
+    #     TODO: Check with the remote sensing products, or at least to validate the model products
+    model_velocity=velocity_m[:last_above_wl+1]
+    # remove lowest cells if needed
+    last_index = -1 * (trim_profile + 1)
     ## TODO: Check the flowline model, the decrease the distance between two adjacent points along the flowline, and then calculate the averaged gradient for dhdx,dhydx,dudx
     ##
     if isinstance(Terminus_mb, (int, float)):
@@ -1722,8 +1747,9 @@ def FA_Sermeq_speed_law(profile, model_velocity,v_scaling=1, Terminus_mb=0, verb
     ## Ice thickness and yield thickness nearest the terminus
     se_terminus = profile[1][last_index]
     bed_terminus = profile[2][last_index]
-    H_terminus = se_terminus - bed_terminus
-    tau_y_terminus = tau_y(tau0=tau0, bed_elev=bed_terminus, thick=H_terminus, yield_type=yield_type)
+    h_terminus = se_terminus - bed_terminus
+    width_terminus = profile[3][last_index]
+    tau_y_terminus = tau_y(tau0=tau0, bed_elev=bed_terminus, thick=h_terminus, yield_type=yield_type)
     Hy_terminus = balance_thickness(yield_strength=tau_y_terminus, bed_elev=bed_terminus)
     if isinstance(model_velocity, (int, float)):
         U_terminus = model_velocity
@@ -1739,7 +1765,7 @@ def FA_Sermeq_speed_law(profile, model_velocity,v_scaling=1, Terminus_mb=0, verb
     Hy_adj = balance_thickness(yield_strength=tau_y_adj, bed_elev=bed_adj)
     # Gradients
     dx_term = profile[0][last_index] - profile[0][last_index - 1]  ## check grid spacing close to terminus
-    dHdx = (H_terminus - H_adj) / dx_term
+    dHdx = (h_terminus - H_adj) / dx_term
     dHydx = (Hy_terminus - Hy_adj) / dx_term
     if np.isnan(U_terminus) or np.isnan(U_adj):
         dUdx = np.nan  ## velocity gradient
@@ -1752,11 +1778,11 @@ def FA_Sermeq_speed_law(profile, model_velocity,v_scaling=1, Terminus_mb=0, verb
     else:
         # Gradients
         # dx_term = profile[0][last_index] - profile[0][last_index - 1]  ## check grid spacing close to terminus
-        # dHdx = (H_terminus - H_adj) / dx_term
+        # dHdx = (h_terminus - H_adj) / dx_term
         # dHydx = (Hy_terminus - Hy_adj) / dx_term
         dUdx = (U_terminus - U_adj) / dx_term  ## velocity gradient
         ## Group the terms
-        dLdt_numerator = terminus_mb - (H_terminus * dUdx) - (U_terminus * dHdx)
+        dLdt_numerator = terminus_mb - (h_terminus * dUdx) - (U_terminus * dHdx)
         dLdt_denominator = dHydx - dHdx  ## TODO: compute dHydx
         dLdt_viscoplastic = dLdt_numerator / dLdt_denominator
         # fa_viscoplastic = dLdt_viscoplastic -U_terminus  ## frontal ablation rate
@@ -1765,7 +1791,8 @@ def FA_Sermeq_speed_law(profile, model_velocity,v_scaling=1, Terminus_mb=0, verb
 
     SQFA = {'se_terminus': se_terminus,
             'bed_terminus': bed_terminus,
-            'Thickness_termi': H_terminus,
+            'Thickness_termi': h_terminus,
+            'Width_termi':  width_terminus,
             'Hy_thickness': Hy_terminus,
             'Velocity_termi': U_terminus,
             'Terminus_mb': terminus_mb,
@@ -1779,14 +1806,14 @@ def FA_Sermeq_speed_law(profile, model_velocity,v_scaling=1, Terminus_mb=0, verb
         print('bed_terminus={}'.format(bed_terminus))
         print('se_adj={}'.format(se_adj))
         print('bed_adj={}'.format(bed_adj))
-        print('Thicknesses: Hterm {}, Hadj {}'.format(H_terminus, H_adj))
+        print('Thicknesses: Hterm {}, Hadj {}'.format(h_terminus, H_adj))
         print('Hy_terminus={}'.format(Hy_terminus))
         print('Hy_adj={}'.format(Hy_adj))
         print('U_terminus={}'.format(U_terminus))
         print('U_adj={}'.format(U_adj))
         print('dUdx={}'.format(dUdx))
         print('dx_term={}'.format(dx_term))
-        print('Checking dLdt: terminus_mb = {}. \n H dUdx = {}. \n U dHdx = {}.'.format(terminus_mb, dUdx * H_terminus,
+        print('Checking dLdt: terminus_mb = {}. \n H dUdx = {}. \n U dHdx = {}.'.format(terminus_mb, dUdx * h_terminus,
                                                                                         U_terminus * dHdx))
         print('Denom: dHydx = {} \n dHdx = {}'.format(dHydx, dHdx))
         print('Viscoplastic dLdt={}'.format(dLdt_viscoplastic))
@@ -1884,6 +1911,8 @@ class FluxBasedModel(FlowlineModel):
              option to use another calving law. This is a temporary workaround
              to test other calving laws, and the system might be improved in
              future OGGM versions.
+             1. k-calving law
+             2. fa_sermq_speed_law
         calving_k : float
             the calving proportionality constant (units: yr-1). Use the
             one from PARAMS per default
@@ -2177,7 +2206,12 @@ class FluxBasedModel(FlowlineModel):
             section = fl.section
 
             # Calving law
-            q_calving = self.calving_law(self, fl, last_above_wl)
+            if self.calving_law == fa_sermeq_speed_law:
+                s_fa = self.calving_law(self, fl, fl_id, last_above_wl,v_scaling = 1, verbose = False,tau0 = 150e3,
+                                        yield_type = 'constant', mu = 0.01,trim_profile = 0)
+                q_calving = s_fa ['Sermeq_fa']*s_fa['Thickness_termi']*s_fa['Width_termi']/cfg.SEC_IN_YEAR
+            else:
+                q_calving = self.calving_law(self, fl, last_above_wl)
 
             # Add to the bucket and the diagnostics
             fl.calving_bucket_m3 += q_calving * dt
