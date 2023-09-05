@@ -1714,7 +1714,7 @@ class TestKCalving():
     def test_other_calving_law(self, default_calving):
 
         _, ds_1, _ = default_calving
-        model = FluxBasedModel(bu_tidewater_bed(),mb_model=ScalarMassBalance(),
+        model = FluxBasedModel(bu_tidewater_bed(), mb_model=ScalarMassBalance(),
                                is_tidewater=True, calving_use_limiter=True,
                                flux_gate=0.06, do_kcalving=True,
                                calving_law=fa_sermeq_speed_law,calving_k=1)
@@ -1735,7 +1735,11 @@ class TestKCalving():
         ds_2 = model.run_until_and_store(3000)
         assert_allclose(model.volume_m3 + model.calving_m3_since_y0,
                         model.flux_gate_m3_since_y0)
-        assert_allclose(ds_1.calving_m3, ds_2.calving_m3)
+        assert_allclose(ds_2.volume_bsl_m3, ds_2.volume_bwl_m3)
+        assert_allclose(ds_2.calving_m3[-1], model.calving_m3_since_y0)
+        assert_allclose(ds_2.volume_bsl_m3[-1], model.volume_bsl_km3 * 1e9)
+        assert_allclose(ds_2.volume_bwl_m3[-1], model.volume_bwl_km3 * 1e9)
+        # assert_allclose(ds_1.calving_m3, ds_2.calving_m3)
 
 
 class TestSia2d(unittest.TestCase):

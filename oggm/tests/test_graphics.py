@@ -266,7 +266,7 @@ def test_multiple_models():
     cfg.PARAMS['use_winter_prcp_fac'] = False
     cfg.PARAMS['use_temp_bias_from_file'] = False
     cfg.PARAMS['prcp_fac'] = 2.5
-    cfg.PARAMS['border'] = 40
+    cfg.PARAMS['border'] = 80
 
     # Get the RGI ID
     hef_rgi = gpd.read_file(get_demo_file('divides_hef.shp'))
