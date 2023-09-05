@@ -1700,7 +1700,7 @@ def fa_sermeq_speed_law(model,flowline, fl_id, last_above_wl, v_scaling=1, verbo
     # calculate frontal ablation based on the ice thickness, speed at the terminus
     surface_m = flowline.surface_h
     bed_m = flowline.bed_h
-    width_m = flowline.widths_mS
+    width_m = flowline.widths_m
     velocity_m = model.u_stag[-1]*cfg.SEC_IN_YEAR
     x_m = flowline.dis_on_line*flowline.map_dx/1000
 
@@ -1709,16 +1709,16 @@ def fa_sermeq_speed_law(model,flowline, fl_id, last_above_wl, v_scaling=1, verbo
     # fls = model.gdir.read_pickle('model_flowlines')
     # mbmod_fl = massbalance.MultipleFlowlineMassBalance(model.gdir, fls=fls, use_inversion_flowlines=True,
     #                                                    mb_model_class=MonthlyTIModel)
-    mb_annual=model.get_annual_mb(heights=surface_m, fl_id=fl_id, year=model.yr, fls=model.fls)
+    mb_annual=model.mb_model.get_annual_mb(heights=surface_m, fl_id=fl_id, year=model.yr, fls=model.fls)
 
     Terminus_mb = mb_annual*cfg.SEC_IN_YEAR
     # slice up to index+1 to include the last nonzero value
     # profile: NDarray
     #     The current profile (x, surface, bed,width) as calculated by the base model
     #     Unlike core SERMeQ, these should be DIMENSIONAL [m].
-    profile=(x_m.values[:last_above_wl+1],
-                 surface_m.values[:last_above_wl+1],
-                 bed_m.values[:last_above_wl+1])
+    profile=(x_m[:last_above_wl+1],
+                 surface_m[:last_above_wl+1],
+                 bed_m[:last_above_wl+1],width_m[:last_above_wl+1])
     # model_velocity: array
     #     Velocity along the flowline [m/a] as calculated by the base model
     #     Should have values for the points nearest the terminus...otherwise
