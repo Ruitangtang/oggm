@@ -1554,10 +1554,10 @@ def k_calving_law(model, flowline, last_above_wl):
     return q_calving
 
 
-def fa_sermeq_speed_law(model,flowline, fl_id, last_above_wl, v_scaling=1, verbose=False,
+def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
                      tau0=150e3, yield_type='constant', mu=0.01,
                      trim_profile=0):
-    """
+    """s
     This function is used to calculate frontal ablation given ice speed forcing,
     for lake-terminating and tidewater glaciers
 
@@ -1620,6 +1620,9 @@ def fa_sermeq_speed_law(model,flowline, fl_id, last_above_wl, v_scaling=1, verbo
     dLdt: length change rate, positive if advance; negative if retreat
     terminus mass balance: negative if mass loss; positive if mass gain
     """
+    # ---------------------------------------------------------------------------
+    # class NegativeValueError(Exception):
+    #     pass
     # ---------------------------------------------------------------------------
     ## Global constants
     G = 9.8  # acceleration due to gravity in m/s^2
@@ -1698,6 +1701,8 @@ def fa_sermeq_speed_law(model,flowline, fl_id, last_above_wl, v_scaling=1, verbo
 
     # ---------------------------------------------------------------------------
     # calculate frontal ablation based on the ice thickness, speed at the terminus
+    fls=model.fls
+    flowline=fls[-1]
     surface_m = flowline.surface_h
     bed_m = flowline.bed_h
     width_m = flowline.widths_m
@@ -1709,7 +1714,7 @@ def fa_sermeq_speed_law(model,flowline, fl_id, last_above_wl, v_scaling=1, verbo
     # fls = model.gdir.read_pickle('model_flowlines')
     # mbmod_fl = massbalance.MultipleFlowlineMassBalance(model.gdir, fls=fls, use_inversion_flowlines=True,
     #                                                    mb_model_class=MonthlyTIModel)
-    mb_annual=model.mb_model.get_annual_mb(heights=surface_m, fl_id=fl_id, year=model.yr, fls=model.fls)
+    mb_annual=model.mb_model.get_annual_mb(heights=surface_m, fl_id=-1, year=model.yr, fls=model.fls)
 
     Terminus_mb = mb_annual*cfg.SEC_IN_YEAR
     # slice up to index+1 to include the last nonzero value
@@ -1786,7 +1791,21 @@ def fa_sermeq_speed_law(model,flowline, fl_id, last_above_wl, v_scaling=1, verbo
         dLdt_denominator = dHydx - dHdx  ## TODO: compute dHydx
         dLdt_viscoplastic = dLdt_numerator / dLdt_denominator
         # fa_viscoplastic = dLdt_viscoplastic -U_terminus  ## frontal ablation rate
-        fa_viscoplastic = U_terminus - dLdt_viscoplastic  ## frontal ablation rate
+        
+        # try:
+        U_calving = U_terminus - dLdt_viscoplastic  ## frontal ablation rate
+        fa_viscoplastic=U_calving
+        # if U_calving<0:
+        #     print("The glacier is advancing, and the advancing rate is larger than ice flow speed at the terminus, please check ")
+        #     if U_calving>0 or U_calving==0:
+        #         fa_viscoplastic=U_calving
+        #     else:
+        #         fa_viscoplastic=U_calving
+        #         # fa_viscoplastic=np.nan
+        #         raise NegativeValueError("Something is wrong, right now the calving in negative, which should be positive or zero")
+        # except NegativeValueError as e:
+        #     print ("The glacier is advancing, and the advancing rate is larger than ice flow speed at the terminus, please check ")
+            
 
 
     SQFA = {'se_terminus': se_terminus,
@@ -2204,10 +2223,10 @@ class FluxBasedModel(FlowlineModel):
 
             # OK, we're really calving
             section = fl.section
-
+            
             # Calving law
             if self.calving_law == fa_sermeq_speed_law:
-                s_fa = self.calving_law(self, fl, fl_id, last_above_wl,v_scaling = 1, verbose = False,tau0 = 150e3,
+                s_fa = self.calving_law(self, last_above_wl,v_scaling = 1, verbose = False,tau0 = 150e3,
                                         yield_type = 'constant', mu = 0.01,trim_profile = 0)
                 q_calving = s_fa ['Sermeq_fa']*s_fa['Thickness_termi']*s_fa['Width_termi']/cfg.SEC_IN_YEAR
             else:
