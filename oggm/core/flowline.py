@@ -4570,3 +4570,5 @@ def clean_merged_flowlines(gdir, buffer=None):
 
     # Finally write the flowlines
     gdir.write_pickle(allfls, 'model_flowlines')
+
+    # test :)
