@@ -1861,7 +1861,7 @@ class FluxBasedModel(FlowlineModel):
                  fs=0., inplace=False, fixed_dt=None, cfl_number=None,
                  min_dt=None, flux_gate_thickness=None,
                  flux_gate=None, flux_gate_build_up=100,
-                 do_kcalving=None, calving_k=None, calving_law=k_calving_law,
+                 do_kcalving=None, calving_k=None, calving_law=fa_sermeq_speed_law,
                  calving_use_limiter=None, calving_limiter_frac=None,
                  water_level=None,
                  **kwargs):
