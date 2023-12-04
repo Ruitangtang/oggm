@@ -2226,7 +2226,7 @@ class FluxBasedModel(FlowlineModel):
             
             # Calving law
             if self.calving_law == fa_sermeq_speed_law:
-                s_fa = self.calving_law(self, last_above_wl,v_scaling = 1, verbose = False,tau0 = 150e3,
+                s_fa = self.calving_law(self, last_above_wl,v_scaling = 1, verbose = False,tau0 = self.calving_k,
                                         yield_type = 'constant', mu = 0.01,trim_profile = 0)
                 q_calving = s_fa ['Sermeq_fa']*s_fa['Thickness_termi']*s_fa['Width_termi']/cfg.SEC_IN_YEAR
             else:
