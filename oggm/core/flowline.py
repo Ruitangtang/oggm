@@ -1555,7 +1555,7 @@ def k_calving_law(model, flowline, last_above_wl):
 
 
 def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
-                     tau0=150e3, yield_type='constant', mu=0.01,
+                     tau0=1.5, yield_type='constant', mu=0.01,
                      trim_profile=0):
     """s
     This function is used to calculate frontal ablation given ice speed forcing,
@@ -1629,9 +1629,10 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
     RHO_ICE = 920.0  # ice density kg/m^3
     RHO_SEA = 1020.0  # seawater density kg/m^3
 
+
     # ---------------------------------------------------------------------------
     # the yield strength
-    def tau_y(tau0=150e3, yield_type='constant', bed_elev=None, thick=None, mu=0.01):
+    def tau_y(tau0=1.5, yield_type='constant', bed_elev=None, thick=None, mu=0.01):
         """
         Functional form of yield strength.
         Can do constant or Mohr-Coulomb yield strength.  Ideally, the glacier's yield type
@@ -1655,6 +1656,7 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
         tau_y: float
             The yield strength for these conditions.
         """
+        tau1=tau0*1e5
         if yield_type == 'variable':
             try:
                 if bed_elev < 0:
@@ -1664,9 +1666,11 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
             except:
                 print('You must set a bed elevation and ice thickness to use variable yield strength.')
             N = RHO_ICE * G * thick - RHO_SEA * G * D  # Normal stress at bed
-            ty = tau0 + mu * N
+            #convert to Pa
+            
+            ty = tau1 + mu * N
         else:  # assume constant if not set
-            ty = tau0
+            ty = tau1
         return ty
 
 
@@ -1689,7 +1693,7 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
         Returns
         -------
         Hy: float
-            The ice thickness for stress balance at the terminus.
+            The ice thickness for stress balance at the terminus. [units]
         """
         if bed_elev < 0:
             D = -1 * bed_elev
