@@ -1347,6 +1347,7 @@ def calving_mb(gdir):
     # Ok. Just take the calving rate from cfg and change its units
     # Original units: km3 a-1, to change to mm a-1 (units of specific MB)
     rho = cfg.PARAMS['ice_density']
+    print("inversion calving rate is",gdir.inversion_calving_rate)
     return gdir.inversion_calving_rate * 1e9 * rho / gdir.rgi_area_m2
 
 
@@ -1991,14 +1992,17 @@ def apparent_mb_from_any_mb(gdir, mb_model=None,
 
     # Do we have a calving glacier?
     cmb = calving_mb(gdir)
+    print('cmb is:',cmb)
     is_calving = cmb != 0
+    print('is calving:',is_calving)
 
     # For each flowline compute the apparent MB
     fls = gdir.read_pickle('inversion_flowlines')
 
+    print("mb_model is:",mb_model)
     if mb_model is None:
         mb_model = mb_model_class(gdir)
-
+    print("mb_model is:",mb_model)
     if mb_years is None:
         mb_years = cfg.PARAMS['geodetic_mb_period']
         y0, y1 = mb_years.split('_')
@@ -2006,37 +2010,45 @@ def apparent_mb_from_any_mb(gdir, mb_model=None,
         y1 = int(y1.split('-')[0])
         mb_years = np.arange(y0, y1, 1)
 
+    print("mb_years:",mb_years)
+
     if len(mb_years) == 2:
         # Range
         mb_years = np.arange(*mb_years, 1)
 
     # Unchanged SMB
+
     o_smb = np.mean(mb_model.get_specific_mb(fls=fls, year=mb_years))
+    print("o_smb is:",o_smb)
 
     def to_minimize(residual_to_opt):
         return o_smb + residual_to_opt - cmb
 
     residual = optimize.brentq(to_minimize, -1e5, 1e5)
-
+    print("residual is:",residual)
     # Reset flux
     for fl in fls:
         fl.reset_flux()
 
     # Flowlines in order to be sure
     rho = cfg.PARAMS['ice_density']
+    print("rho",rho)
     for fl_id, fl in enumerate(fls):
         mbz = 0
         for yr in mb_years:
             mbz += mb_model.get_annual_mb(fl.surface_h, year=yr,
                                           fls=fls, fl_id=fl_id)
+            print("year is:",yr)
         mbz = mbz / len(mb_years)
+        print("mbz is",mbz)
         fl.set_apparent_mb(mbz * cfg.SEC_IN_YEAR * rho + residual,
                            is_calving=is_calving)
+        print("the apparent mb is set")
         if fl_id < len(fls) and fl.flux_out < -1e3:
             log.warning('({}) a tributary has a strongly negative flux. '
                         'Inversion works but is physically quite '
                         'questionable.'.format(gdir.rgi_id))
-
+        print("fl_id is:",fl_id)
     # Check and write
     _check_terminus_mass_flux(gdir, fls)
     gdir.add_to_diagnostics('apparent_mb_from_any_mb_residual', residual)
