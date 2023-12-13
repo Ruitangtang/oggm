@@ -699,18 +699,6 @@ def mass_conservation_inversion(gdir, glen_a=None, fs=None, write=True,
     fd = 2. / (cfg.PARAMS['glen_n']+2) * glen_a
     a3 = fs / fd
     rho = cfg.PARAMS['ice_density']
-    rho_o = cfg.PARAMS['ocean_density']
-
-
-    if water_level is None:
-        water_level = 0
-    # Inversion with shape factors?
-    sf_func = None
-    use_sf = cfg.PARAMS.get('use_shape_factor_for_inversion', None)
-    if use_sf == 'Adhikari' or use_sf == 'Nye':
-        sf_func = utils.shape_factor_adhikari
-    elif use_sf == 'Huss':
-        sf_func = utils.shape_factor_huss
     
     # Clip the slope, in rad
     min_slope = 'min_slope_ice_caps' if gdir.is_icecap else 'min_slope'
