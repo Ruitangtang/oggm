@@ -11,6 +11,8 @@ from time import gmtime, strftime
 import os
 import shutil
 import warnings
+import traceback
+import sys
 
 # External libs
 import numpy as np
@@ -1276,13 +1278,14 @@ class FlowlineModel(object):
         # Run
         j = 0
         prev_state = None  # for the stopping criterion
+        print("start_run")
         for i, (yr, mo) in enumerate(zip(monthly_time, months)):
 
             if yr > self.yr:
                 # Here we model run - otherwise (for spinup) we
                 # constantly store the same data
                 self.run_until(yr)
-
+                print("runned")
             # Glacier geometry
             if (do_geom or do_fl_diag) and mo == 1:
                 for s, w, b, fl in zip(sects, widths, buckets, self.fls):
@@ -1555,7 +1558,7 @@ def k_calving_law(model, flowline, last_above_wl):
 
 
 def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
-                     tau0=1.5, yield_type='constant', mu=0.01,
+                     tau0=1.5, variable_yield=None, mu=0.01,
                      trim_profile=0):
     """s
     This function is used to calculate frontal ablation given ice speed forcing,
@@ -1628,11 +1631,14 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
     G = 9.8  # acceleration due to gravity in m/s^2
     RHO_ICE = 920.0  # ice density kg/m^3
     RHO_SEA = 1020.0  # seawater density kg/m^3
+    print("variable_yield is ", variable_yield)
+    if variable_yield is not None and not variable_yield:
+        variable_yield = None
 
 
     # ---------------------------------------------------------------------------
     # the yield strength
-    def tau_y(tau0=1.5, yield_type='constant', bed_elev=None, thick=None, mu=0.01):
+    def tau_y(tau0=tau0, variable_yield=None, bed_elev=None, thick=None, mu=0.01):
         """
         Functional form of yield strength.
         Can do constant or Mohr-Coulomb yield strength.  Ideally, the glacier's yield type
@@ -1657,14 +1663,15 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
             The yield strength for these conditions.
         """
         tau1=tau0*1e5
-        if yield_type == 'variable':
+        if variable_yield is not None:
             try:
                 if bed_elev < 0:
                     D = -1 * bed_elev  # Water depth D the nondim bed topography value when Z<0
                 else:
                     D = 0
             except:
-                print('You must set a bed elevation and ice thickness to use variable yield strength.')
+                print('You must set a bed elevation and ice thickness to use variable yield strength. Using constant yeild instead')
+                ty = tau1
             N = RHO_ICE * G * thick - RHO_SEA * G * D  # Normal stress at bed
             #convert to Pa
             
@@ -1700,7 +1707,7 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
         else:
             D = 0
         return (2 * yield_strength / (RHO_ICE * G)) + np.sqrt(
-            (RHO_SEA * (D ** 2) / RHO_ICE) + ((2 * yield_strength / (RHO_ICE * G)) ** 1))
+            (RHO_SEA * (D ** 2) / RHO_ICE) + ((2 * yield_strength / (RHO_ICE * G)) ** 2))
         # TODO: Check on exponent on last term.  In Ultee & Bassis 2016, this is squared, but in Ultee & Bassis 2020 supplement, it isn't.
 
     # ---------------------------------------------------------------------------
@@ -1758,7 +1765,7 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
     bed_terminus = profile[2][last_index]
     h_terminus = se_terminus - bed_terminus
     width_terminus = profile[3][last_index]
-    tau_y_terminus = tau_y(tau0=tau0, bed_elev=bed_terminus, thick=h_terminus, yield_type=yield_type)
+    tau_y_terminus = tau_y(tau0=tau0, bed_elev=bed_terminus, thick=h_terminus, variable_yield=variable_yield)
     Hy_terminus = balance_thickness(yield_strength=tau_y_terminus, bed_elev=bed_terminus)
     if isinstance(model_velocity, (int, float)):
         U_terminus = model_velocity
@@ -1770,7 +1777,7 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
     se_adj = profile[1][last_index - 1]
     bed_adj = profile[2][last_index - 1]
     H_adj = se_adj - bed_adj
-    tau_y_adj = tau_y(tau0=tau0, bed_elev=bed_adj, thick=H_adj, yield_type=yield_type)
+    tau_y_adj = tau_y(tau0=tau0, bed_elev=bed_adj, thick=H_adj, variable_yield=variable_yield)
     Hy_adj = balance_thickness(yield_strength=tau_y_adj, bed_elev=bed_adj)
     # Gradients
     dx_term = profile[0][last_index] - profile[0][last_index - 1]  ## check grid spacing close to terminus
@@ -1866,7 +1873,7 @@ class FluxBasedModel(FlowlineModel):
                  min_dt=None, flux_gate_thickness=None,
                  flux_gate=None, flux_gate_build_up=100,
                  do_kcalving=None, calving_k=None, calving_law=fa_sermeq_speed_law,
-                 calving_use_limiter=None, calving_limiter_frac=None,
+                 variable_yield=None, calving_use_limiter=None, calving_limiter_frac=None,
                  water_level=None,
                  **kwargs):
         """Instantiate the model.
@@ -1977,17 +1984,22 @@ class FluxBasedModel(FlowlineModel):
         self.do_calving = do_kcalving and self.is_tidewater
         if calving_k is None:
             calving_k = cfg.PARAMS['calving_k']
+        #self.calving_k = calving_kS
         self.calving_k = calving_k / cfg.SEC_IN_YEAR
+        #TODO put conditions for different calving laws
         if calving_use_limiter is None:
             calving_use_limiter = cfg.PARAMS['calving_use_limiter']
         self.calving_use_limiter = calving_use_limiter
         if calving_limiter_frac is None:
             calving_limiter_frac = cfg.PARAMS['calving_limiter_frac']
+        if variable_yield is None:
+            variable_yield = cfg.PARAMS['variable_yield']
+        self.variable_yield = variable_yield
         if calving_limiter_frac > 0:
             raise NotImplementedError('calving limiter other than 0 not '
                                       'implemented yet')
         self.calving_limiter_frac = calving_limiter_frac
-
+        print("initialized fluxmodel")
         # Flux gate
         self.flux_gate = utils.tolist(flux_gate, length=len(self.fls))
         self.flux_gate_m3_since_y0 = 0.
@@ -2080,7 +2092,7 @@ class FluxBasedModel(FlowlineModel):
             thick = fl.thick
             section = fl.section
             dx = fl.dx_meter
-
+            print("step")
             # If it is a tributary, we use the branch it flows into to compute
             # the slope of the last grid point
             is_trib = trib[0] is not None
@@ -2230,9 +2242,17 @@ class FluxBasedModel(FlowlineModel):
             
             # Calving law
             if self.calving_law == fa_sermeq_speed_law:
-                s_fa = self.calving_law(self, last_above_wl,v_scaling = 1, verbose = False,tau0 = self.calving_k,
-                                        yield_type = 'constant', mu = 0.01,trim_profile = 0)
-                q_calving = s_fa ['Sermeq_fa']*s_fa['Thickness_termi']*s_fa['Width_termi']/cfg.SEC_IN_YEAR
+                print("before calving")
+                try:
+                    # Transit the unit of tau0 to Pa, based on the equation self.calving_k= calving_k/cfg.SEC_IN_YEAR
+                    # tau0 = self.calving_k * cfg.SEC_IN_YEAR
+                    s_fa = self.calving_law(self, last_above_wl,v_scaling = 1, verbose = False,tau0 = (self.calving_k)*cfg.SEC_IN_YEAR,
+                                        variable_yield=self.variable_yield, mu = 0.01,trim_profile = 0)
+                    q_calving = s_fa ['Sermeq_fa']*s_fa['Thickness_termi']*s_fa['Width_termi']/cfg.SEC_IN_YEAR
+                    print("after calving")
+
+                except RuntimeError:
+                    traceback.print_exception(*sys.exc_info())
             else:
                 q_calving = self.calving_law(self, fl, last_above_wl)
 
@@ -2258,14 +2278,19 @@ class FluxBasedModel(FlowlineModel):
 
             # The rest of the bucket might calve an entire grid point (or more?)
             vol_last = section[last_above_wl] * fl.dx_meter
+            print("the volumn of the last pixel is",vol_last)
+            print("last_above_wl is",last_above_wl)
             while fl.calving_bucket_m3 > vol_last:
                 fl.calving_bucket_m3 -= vol_last
                 section[last_above_wl] = 0
-
+                
                 # OK check if we need to continue (unlikely)
                 last_above_wl -= 1
+                print('vol_last is',vol_last)
+                print('fl.calving_bucket_m3 is',fl.calving_bucket_m3)
+                print("the updated last_above_wl is ", last_above_wl)
                 vol_last = section[last_above_wl] * fl.dx_meter
-
+                print("the updated volumn of the last pixel is",vol_last)
             # We update the glacier with our changes
             fl.section = section
 
