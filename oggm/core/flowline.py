@@ -1631,10 +1631,10 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
     G = 9.8  # acceleration due to gravity in m/s^2
     RHO_ICE = 920.0  # ice density kg/m^3
     RHO_SEA = 1020.0  # seawater density kg/m^3
-    print("variable_yield is ", variable_yield)
+    
     if variable_yield is not None and not variable_yield:
         variable_yield = None
-
+    print("variable_yield is ", variable_yield)
 
     # ---------------------------------------------------------------------------
     # the yield strength
@@ -2251,6 +2251,8 @@ class FluxBasedModel(FlowlineModel):
                     q_calving = s_fa ['Sermeq_fa']*s_fa['Thickness_termi']*s_fa['Width_termi']/cfg.SEC_IN_YEAR
                     print("after calving")
 
+                    print
+
                 except RuntimeError:
                     traceback.print_exception(*sys.exc_info())
             else:
@@ -2291,6 +2293,7 @@ class FluxBasedModel(FlowlineModel):
                 print("the updated last_above_wl is ", last_above_wl)
                 vol_last = section[last_above_wl] * fl.dx_meter
                 print("the updated volumn of the last pixel is",vol_last)
+            print()
             # We update the glacier with our changes
             fl.section = section
 
