@@ -872,6 +872,18 @@ def filter_inversion_output(gdir, n_smoothing=5, min_ice_thick=1.,
     cls = gdir.read_pickle('inversion_output')
     cl = cls[-1]
 
+    # check that their are enough grid points for smoothing
+    nr_grid_points = len(cl['thick'])
+    if nr_grid_points <= n_smoothing:
+        if nr_grid_points >= 3:
+            n_smoothing = nr_grid_points - 1
+        else:
+            log.warning(f'({gdir.rgi_id}) filter_inversion_output: flowline '
+                        f'has not enough grid points for applying the filter '
+                        f'(only {nr_grid_points} grid points)!')
+            # Return volume for convenience
+            return np.sum([np.sum(cl['volume']) for cl in cls])
+
     # convert to negative number for indexing
     n_smoothing = -abs(n_smoothing)
 
@@ -1136,7 +1148,7 @@ def distribute_thickness_per_altitude(gdir, add_slope=True,
         if len(pzero[0]) == 0:
             thick[y, x] = np.average(ts[pok], weights=1 / sqr)
         elif len(pzero[0]) == 1:
-            thick[y, x] = ts[pzero]
+            thick[y, x] = ts[pzero[0][0]]
         else:
             raise RuntimeError('We should not be there')
 

@@ -176,8 +176,10 @@ def process_cru_data(gdir, tmp_file=None, pre_file=None, y0=None, y1=None,
     assert len(hgt_f) > 0.
 
     # maybe this will throw out of bounds warnings
-    nc_ts_tmp.set_subset(corners=((lon, lat), (lon, lat)), margin=1)
-    nc_ts_pre.set_subset(corners=((lon, lat), (lon, lat)), margin=1)
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=RuntimeWarning)
+        nc_ts_tmp.set_subset(corners=((lon, lat), (lon, lat)), margin=1)
+        nc_ts_pre.set_subset(corners=((lon, lat), (lon, lat)), margin=1)
 
     # compute monthly anomalies
     # of temp
@@ -362,7 +364,6 @@ def process_dummy_cru_file(gdir, sigma_temp=2, sigma_prcp=0.5, seed=None,
     isok = np.isfinite(loc_hgt)
     hgt_f = loc_hgt[isok].flatten()
     assert len(hgt_f) > 0.
-
 
     # Make DataArrays
     rng = np.random.RandomState(seed)

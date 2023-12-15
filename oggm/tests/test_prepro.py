@@ -96,7 +96,7 @@ class TestGIS(unittest.TestCase):
         gis.define_glacier_region(gdir)
         extent = gdir.extent_ll
 
-        tdf = gdir.read_shapefile('outlines')
+        tdf = gdir.read_shapefile('outlines').iloc[0]
         myarea = tdf.geometry.area * 10**-6
         np.testing.assert_allclose(myarea, float(tdf['Area']), rtol=1e-2)
         self.assertTrue(gdir.has_file('intersects'))
@@ -107,7 +107,11 @@ class TestGIS(unittest.TestCase):
         gdir = oggm.GlacierDirectory(gdir.rgi_id, base_dir=self.testdir)
         # This is not guaranteed to be equal because of projection issues
         np.testing.assert_allclose(extent, gdir.extent_ll, atol=1e-5)
-        assert gdir.grid == gdir.grid_from_params()
+        warnings.filterwarnings("error")
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=FutureWarning)
+            # Warning in salem
+            assert gdir.grid == gdir.grid_from_params()
 
         # Change area
         prev_area = gdir.rgi_area_km2
@@ -196,6 +200,18 @@ class TestGIS(unittest.TestCase):
         gis.define_glacier_region(gdir)
         mygrid = salem.Grid.from_json(gdir.get_filepath('glacier_grid'))
         np.testing.assert_allclose(np.abs(mygrid.dx), 50.)
+
+        # Test binned method
+        cfg.PARAMS['grid_dx_method'] = 'by_bin'
+        gis.define_glacier_region(gdir)
+        mygrid = salem.Grid.from_json(gdir.get_filepath('glacier_grid'))
+        np.testing.assert_allclose(np.abs(mygrid.dx), 50.)
+
+        cfg.PARAMS['grid_dx_method'] = 'by_bin'
+        cfg.PARAMS['by_bin_dx'] = [25, 75, 100, 200]
+        gis.define_glacier_region(gdir)
+        mygrid = salem.Grid.from_json(gdir.get_filepath('glacier_grid'))
+        np.testing.assert_allclose(np.abs(mygrid.dx), 75.)
 
         # Test linear method
         cfg.PARAMS['grid_dx_method'] = 'linear'
@@ -871,7 +887,7 @@ class TestElevationBandFlowlines(unittest.TestCase):
             topo = nc.variables['topo_smoothed'][:]
         rhgt = topo[np.where(mask)][:]
 
-        tdf = gdir.read_shapefile('outlines')
+        tdf = gdir.read_shapefile('outlines').iloc[0]
         np.testing.assert_allclose(area, otherarea, rtol=0.1)
         np.testing.assert_allclose(evenotherarea, gdir.rgi_area_m2)
         area *= gdir.grid.dx ** 2
@@ -1104,7 +1120,7 @@ class TestGeometry(unittest.TestCase):
             topo = nc.variables['topo_smoothed'][:]
         rhgt = topo[np.where(mask)][:]
 
-        tdf = gdir.read_shapefile('outlines')
+        tdf = gdir.read_shapefile('outlines').iloc[0]
         np.testing.assert_allclose(area, otherarea, rtol=0.1)
         np.testing.assert_allclose(evenotherarea, gdir.rgi_area_m2)
         area *= (gdir.grid.dx) ** 2
@@ -1374,8 +1390,6 @@ class TestClimate(unittest.TestCase):
         from functools import partial
         mb_calibration_from_scalar_mb = partial(mb_calibration_from_scalar_mb,
                                                 overwrite_gdir=True)
-
-
 
         hef_file = get_demo_file('Hintereisferner_RGI5.shp')
         entity = gpd.read_file(hef_file).iloc[0]
@@ -1649,7 +1663,6 @@ class TestClimate(unittest.TestCase):
         assert pdf['melt_f'] < cfg.PARAMS['melt_f']
         assert pdf['prcp_fac'] == cfg.PARAMS['prcp_fac_max']
 
-
     @pytest.mark.slow
     def test_mb_calibration_from_scalar_mb_multiple_fl(self):
 
@@ -1675,8 +1688,7 @@ class TestClimate(unittest.TestCase):
         mbdf['ref_mb'] = mbdf['ANNUAL_BALANCE']
         ref_mb = mbdf.ref_mb.mean()
         ref_period = f'{mbdf.index[0]}-01-01_{mbdf.index[-1] + 1}-01-01'
-        mb_calibration_from_scalar_mb(gdir, ref_mb=ref_mb,
-                                        ref_period=ref_period)
+        mb_calibration_from_scalar_mb(gdir, ref_mb=ref_mb, ref_period=ref_period)
         mb_new = massbalance.MonthlyTIModel(gdir)
 
         h, w = gdir.get_inversion_flowline_hw()
@@ -2555,7 +2567,7 @@ class TestGrindelInvert(unittest.TestCase):
         self.assertGreaterEqual(len(gdfc), len(fls)-1)
 
         # check touch borders qualitatively
-        self.assertGreaterEqual(np.sum(fls[-1].is_rectangular),  10)
+        self.assertGreaterEqual(np.sum(fls[-1].is_rectangular), 10)
 
 
 class TestGCMClimate(unittest.TestCase):
@@ -2840,8 +2852,8 @@ class TestGCMClimate(unittest.TestCase):
         fh = gdir.get_filepath('climate_historical')
         fcmip = gdir.get_filepath('gcm_data', filesuffix='_CCSM4')
         fcmip_y0_y1 = gdir.get_filepath('gcm_data', filesuffix='_CCSM4_y0_y1')
-        with xr.open_dataset(fh) as cru,\
-              xr.open_dataset(fcmip) as cmip,\
+        with xr.open_dataset(fh) as cru, \
+              xr.open_dataset(fcmip) as cmip, \
               xr.open_dataset(fcmip_y0_y1) as cmip_y0_y1:
 
             # Let's do some basic checks
