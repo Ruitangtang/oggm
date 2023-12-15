@@ -1629,7 +1629,7 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
     # ---------------------------------------------------------------------------
     ## Global constants
     G = 9.8  # acceleration due to gravity in m/s^2
-    RHO_ICE = 920.0  # ice density kg/m^3
+    RHO_ICE = 900.0  # ice density kg/m^3
     RHO_SEA = 1020.0  # seawater density kg/m^3
     
     if variable_yield is not None and not variable_yield:
