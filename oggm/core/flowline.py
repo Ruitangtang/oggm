@@ -410,8 +410,7 @@ class TrapezoidalBedFlowline(Flowline):
         if np.any(self._w0_m <= 0):
             raise ValueError('Trapezoid beds need to have origin widths > 0.')
 
-        self._prec = np.where(lambdas == 0)[0]
-
+        self._prec = lambdas == 0
         self._lambdas = lambdas
 
     @property
@@ -510,7 +509,7 @@ class MixedBedFlowline(Flowline):
 
         assert np.all(self.bed_shape[~is_trapezoid] > 0)
 
-        self._prec = np.where(is_trapezoid & (lambdas == 0))[0]
+        self._prec = is_trapezoid & (lambdas == 0)
 
         assert np.allclose(section, self.section)
 
@@ -1554,10 +1553,10 @@ def k_calving_law(model, flowline, last_above_wl):
     return q_calving
 
 
-def fa_sermeq_speed_law(model,flowline, fl_id, last_above_wl, v_scaling=1, verbose=False,
+def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
                      tau0=150e3, yield_type='constant', mu=0.01,
                      trim_profile=0):
-    """
+    """s
     This function is used to calculate frontal ablation given ice speed forcing,
     for lake-terminating and tidewater glaciers
 
@@ -1620,6 +1619,9 @@ def fa_sermeq_speed_law(model,flowline, fl_id, last_above_wl, v_scaling=1, verbo
     dLdt: length change rate, positive if advance; negative if retreat
     terminus mass balance: negative if mass loss; positive if mass gain
     """
+    # ---------------------------------------------------------------------------
+    # class NegativeValueError(Exception):
+    #     pass
     # ---------------------------------------------------------------------------
     ## Global constants
     G = 9.8  # acceleration due to gravity in m/s^2
@@ -1698,6 +1700,8 @@ def fa_sermeq_speed_law(model,flowline, fl_id, last_above_wl, v_scaling=1, verbo
 
     # ---------------------------------------------------------------------------
     # calculate frontal ablation based on the ice thickness, speed at the terminus
+    fls=model.fls
+    flowline=fls[-1]
     surface_m = flowline.surface_h
     bed_m = flowline.bed_h
     width_m = flowline.widths_m
@@ -1709,7 +1713,7 @@ def fa_sermeq_speed_law(model,flowline, fl_id, last_above_wl, v_scaling=1, verbo
     # fls = model.gdir.read_pickle('model_flowlines')
     # mbmod_fl = massbalance.MultipleFlowlineMassBalance(model.gdir, fls=fls, use_inversion_flowlines=True,
     #                                                    mb_model_class=MonthlyTIModel)
-    mb_annual=model.mb_model.get_annual_mb(heights=surface_m, fl_id=fl_id, year=model.yr, fls=model.fls)
+    mb_annual=model.mb_model.get_annual_mb(heights=surface_m, fl_id=-1, year=model.yr, fls=model.fls)
 
     Terminus_mb = mb_annual*cfg.SEC_IN_YEAR
     # slice up to index+1 to include the last nonzero value
@@ -1786,7 +1790,21 @@ def fa_sermeq_speed_law(model,flowline, fl_id, last_above_wl, v_scaling=1, verbo
         dLdt_denominator = dHydx - dHdx  ## TODO: compute dHydx
         dLdt_viscoplastic = dLdt_numerator / dLdt_denominator
         # fa_viscoplastic = dLdt_viscoplastic -U_terminus  ## frontal ablation rate
-        fa_viscoplastic = U_terminus - dLdt_viscoplastic  ## frontal ablation rate
+        
+        # try:
+        U_calving = U_terminus - dLdt_viscoplastic  ## frontal ablation rate
+        fa_viscoplastic=U_calving
+        # if U_calving<0:
+        #     print("The glacier is advancing, and the advancing rate is larger than ice flow speed at the terminus, please check ")
+        #     if U_calving>0 or U_calving==0:
+        #         fa_viscoplastic=U_calving
+        #     else:
+        #         fa_viscoplastic=U_calving
+        #         # fa_viscoplastic=np.nan
+        #         raise NegativeValueError("Something is wrong, right now the calving in negative, which should be positive or zero")
+        # except NegativeValueError as e:
+        #     print ("The glacier is advancing, and the advancing rate is larger than ice flow speed at the terminus, please check ")
+            
 
 
     SQFA = {'se_terminus': se_terminus,
@@ -2204,10 +2222,10 @@ class FluxBasedModel(FlowlineModel):
 
             # OK, we're really calving
             section = fl.section
-
+            
             # Calving law
             if self.calving_law == fa_sermeq_speed_law:
-                s_fa = self.calving_law(self, fl, fl_id, last_above_wl,v_scaling = 1, verbose = False,tau0 = 150e3,
+                s_fa = self.calving_law(self, last_above_wl,v_scaling = 1, verbose = False,tau0 = 150e3,
                                         yield_type = 'constant', mu = 0.01,trim_profile = 0)
                 q_calving = s_fa ['Sermeq_fa']*s_fa['Thickness_termi']*s_fa['Width_termi']/cfg.SEC_IN_YEAR
             else:
@@ -3276,7 +3294,8 @@ def calving_glacier_downstream_line(line, n_points):
 
 
 @entity_task(log, writes=['model_flowlines'])
-def init_present_time_glacier(gdir, filesuffix=''):
+def init_present_time_glacier(gdir, filesuffix='',
+                              use_binned_thickness_data=False):
     """Merges data from preprocessing tasks. First task after inversion!
 
     This updates the `mode_flowlines` file and creates a stand-alone numerical
@@ -3287,9 +3306,14 @@ def init_present_time_glacier(gdir, filesuffix=''):
     gdir : :py:class:`oggm.GlacierDirectory`
         the glacier directory to process
     filesuffix : str
-            append a suffix to the model_flowlines filename (e.g. useful for
-            dynamic melt_f calibration including an inversion, so the original
-            model_flowlines are not changed).
+        append a suffix to the model_flowlines filename (e.g. useful for
+        dynamic melt_f calibration including an inversion, so the original
+        model_flowlines are not changed).
+    use_binned_thickness_data : bool or str
+        if you want to use thickness data, which was binned to the elevation
+        band flowlines with tasks.elevation_band_flowine and
+        tasks.fixed_dx_elevation_band_flowline, you can provide the name of the
+        data here to create a flowline for a dynamic model run
     """
 
     # Some vars
@@ -3306,20 +3330,53 @@ def init_present_time_glacier(gdir, filesuffix=''):
 
         # Get the data to make the model flowlines
         line = cl.line
-        section = inv['volume'] / (cl.dx * map_dx)
         surface_h = cl.surface_h
-        bed_h = surface_h - inv['thick']
         widths_m = cl.widths * map_dx
-
         assert np.all(widths_m > 0)
-        bed_shape = 4 * inv['thick'] / (cl.widths * map_dx) ** 2
 
-        lambdas = inv['thick'] * np.NaN
-        lambdas[inv['is_trapezoid']] = def_lambda
-        lambdas[inv['is_rectangular']] = 0.
+        if not use_binned_thickness_data:
+            # classical initialisation after the inversion
+            section = inv['volume'] / (cl.dx * map_dx)
+            bed_h = surface_h - inv['thick']
 
-        # Where the flux and the thickness is zero we just assume trapezoid:
-        lambdas[bed_shape == 0] = def_lambda
+            bed_shape = 4 * inv['thick'] / widths_m ** 2
+
+            lambdas = inv['thick'] * np.NaN
+            lambdas[inv['is_trapezoid']] = def_lambda
+            lambdas[inv['is_rectangular']] = 0.
+
+            # Where the flux and the thickness is zero we just assume trapezoid:
+            lambdas[bed_shape == 0] = def_lambda
+
+        else:
+            # here we use binned thickness data for the initialisation
+            elev_fl = pd.read_csv(
+                gdir.get_filepath('elevation_band_flowline',
+                                  filesuffix='_fixed_dx'), index_col=0)
+            assert np.allclose(widths_m, elev_fl['widths_m'])
+            elev_fl_thick = elev_fl[use_binned_thickness_data].values
+            section = elev_fl_thick * widths_m
+            lambdas = np.ones(len(section)) * def_lambda
+
+            # for trapezoidal the calculation of thickness results in quadratic
+            # equation, we only keep solution which results in a positive w0
+            # value (-> w/lambda >= h),
+            # it still could happen that we would need a negative w0 if the
+            # section is too large, in those cases we get a negative value
+            # inside sqrt (we ignore the RuntimeWarning) -> if this happens we
+            # use rectangular shape with original thickness
+            with np.errstate(invalid='ignore'):
+                thick = ((2 * widths_m -
+                          np.sqrt(4 * widths_m ** 2 -
+                                  4 * lambdas * 2 * section)) /
+                         (2 * lambdas))
+            nan_thick = np.isnan(thick)
+            thick[nan_thick] = elev_fl_thick[nan_thick]
+            lambdas[nan_thick] = 0
+
+            # finally the glacier bed and other stuff
+            bed_h = surface_h - thick
+            bed_shape = 4 * thick / widths_m ** 2
 
         if not gdir.is_tidewater and inv['is_last']:
             # for valley glaciers, simply add the downstream line, depending on
