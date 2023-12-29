@@ -1904,6 +1904,7 @@ def _check_terminus_mass_flux(gdir, fls):
     if cmb == 0 and not np.allclose(flux, 0, atol=0.01):
         log.info('(%s) flux should be zero, but is: '
                  '%.4f km3 ice yr-1', gdir.rgi_id, aflux)
+        print('(%s) flux should be zero, but is: %.4f km3 ice yr-1', gdir.rgi_id, aflux)
 
     # If not marine and quite far from zero, error
     if cmb == 0 and not np.allclose(flux, 0, atol=1):
@@ -1992,7 +1993,7 @@ def apparent_mb_from_any_mb(gdir, mb_model=None,
 
     # Do we have a calving glacier?
     cmb = calving_mb(gdir)
-    print('cmb is:',cmb)
+    print('cmb is (calving mass loss with unit mm a-1):',cmb)
     is_calving = cmb != 0
     print('is calving:',is_calving)
 
@@ -2019,20 +2020,20 @@ def apparent_mb_from_any_mb(gdir, mb_model=None,
     # Unchanged SMB
 
     o_smb = np.mean(mb_model.get_specific_mb(fls=fls, year=mb_years))
-    print("o_smb is:",o_smb)
+    print("o_smb is (mm w.e. yr-1):",o_smb)
 
     def to_minimize(residual_to_opt):
         return o_smb + residual_to_opt - cmb
 
     residual = optimize.brentq(to_minimize, -1e5, 1e5)
-    print("residual is:",residual)
+    print("residual is (mm w.e. yr-1):",residual)
     # Reset flux
     for fl in fls:
         fl.reset_flux()
 
     # Flowlines in order to be sure
     rho = cfg.PARAMS['ice_density']
-    print("rho",rho)
+    print("rho of ice is (kg m-3)",rho)
     for fl_id, fl in enumerate(fls):
         mbz = 0
         for yr in mb_years:
@@ -2043,11 +2044,17 @@ def apparent_mb_from_any_mb(gdir, mb_model=None,
         print("mbz is",mbz)
         fl.set_apparent_mb(mbz * cfg.SEC_IN_YEAR * rho + residual,
                            is_calving=is_calving)
-        print("the apparent mb is set")
+        print('*****************************************************************')
+        print("the apparent mb is set, and the apparent_mb  is :",fl.apparent_mb)
+        print("the flux is  :",fl.flux)
+        print("the flux out is :",fl.flux_out)
+        print("correct the flux is:",fl.flux_needs_correction)
+        print('*****************************************************************')
         if fl_id < len(fls) and fl.flux_out < -1e3:
             log.warning('({}) a tributary has a strongly negative flux. '
                         'Inversion works but is physically quite '
                         'questionable.'.format(gdir.rgi_id))
+            print('({}) a tributary has a strongly negative flux. Inversion works but is physically quite ,questionable.'.format(gdir.rgi_id))
         print("fl_id is:",fl_id)
     # Check and write
     _check_terminus_mass_flux(gdir, fls)
