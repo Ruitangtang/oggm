@@ -99,11 +99,13 @@ def prepare_for_inversion(gdir,
         # Clip flux to 0
         if np.any(flux < -0.1):
             log.info('(%s) has negative flux somewhere', gdir.rgi_id)
+            print('(%s) has negative flux somewhere', gdir.rgi_id)
         utils.clip_min(flux, 0, out=flux)
 
         if np.sum(flux <= 0) > 1 and len(fls) == 1:
             log.warning("More than one grid point has zero or "
                         "negative flux: this should not happen.")
+            print("More than one grid point has zero or negative flux: this should not happen.")
 
         if fl.flows_to is None and gdir.inversion_calving_rate == 0:
             if not np.allclose(flux_out, 0., atol=0.1):
@@ -184,6 +186,7 @@ def _compute_thick(a0s, a3, flux_a0, _inv_function):
             out_thick[i] = _inv_function(a3, a0) if Q > 0 else 0
     except TypeError:
         # Scalar
+        print("*********************TypeError in _compute_thick*********************")
         out_thick = _inv_function(a3, a0s) if flux_a0 > 0 else 0
 
     if np.any(~np.isfinite(out_thick)):
@@ -359,8 +362,8 @@ def _vol_below_water(surface_h, bed_h, bed_shape, thick, widths,
 
 def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_wl=None, v_scaling=1, verbose=False,
                      tau0=1.5, variable_yield=None, mu=0.01,
-                     trim_profile=0,water_level=None):
-    """s
+                     trim_profile=0):
+    """
     This function is used to calculate frontal ablation given ice speed forcing,
     for lake-terminating and tidewater glaciers
 
@@ -394,7 +397,7 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
         Whether to print component parts for inspection.  Default False.
 
     tau0: float, optional
-        This glacier's yield strength [Pa]. Default is 150 kPa.
+        This glacier's yield strength [Pa]. Default is 150 kPa., default value here is 1.5
     yield_type: str, optional
         'constant' or 'variable' (Mohr-Coulomb) yielding. Default is constant.
     mu: float, optional
@@ -440,8 +443,8 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
     print("variable_yield is ", variable_yield)
     if variable_yield is not None and not variable_yield:
         variable_yield = None
-    if water_level is None:
-        water_level = 0
+#    if water_level is None:
+#        water_level = 0
 #    rho = cfg.PARAMS['ice_density']
 #    rho_o = cfg.PARAMS['ocean_density']
     # ---------------------------------------------------------------------------
@@ -486,6 +489,7 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
             ty = tau1 + mu * N
         else:  # assume constant if not set
             ty = tau1
+        print("the yield strength now is PA:",ty)
         return ty
 
 
@@ -522,7 +526,7 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
     # calculate frontal ablation based on the ice thickness, speed at the terminus
     fls = gdir.read_pickle('inversion_flowlines')
     flowline=fls[-1]
-    print("dir of flowline is:",dir(flowline))
+    print("dir of flowline in inversion_flowlines is:",dir(flowline))
     cls = gdir.read_pickle('inversion_output')
     cl = cls[-1]
     print("dir of the cl in inversion_output:",dir(cl))
@@ -531,7 +535,8 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
 #    f_b = utils.clip_min(1e-3,cl['hgt'][-1] - water_level)
 #    out_thick[-1] = (((RHO_SEA / RHO_ICE) * min_rel_h * f_b) / 
 #                     ((RHO_SEA / RHO_ICE) * min_rel_h - min_rel_h + 1))
-    bed_m = cl['hgt'] - cl['thick']
+    #bed_m = cl['hgt'] - cl['thick']
+    bed_m=surface_m-cl['thick']
     print("bed_m is:",bed_m)
     #bed_m = flowline.bed_h
     width_m = flowline.widths_m
@@ -550,15 +555,17 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
     print("velocity is:",velocity)
     velocity_m = velocity
     x_m = flowline.dis_on_line*flowline.map_dx/1000
-
+    print("x_m is:",x_m)
     # gdir : py:class:`oggm.GlacierDirectory`
     #     the glacier directory to process
     # fls = model.gdir.read_pickle('model_flowlines')
     # mbmod_fl = massbalance.MultipleFlowlineMassBalance(model.gdir, fls=fls, use_inversion_flowlines=True,
     #                                                    mb_model_class=MonthlyTIModel)
-    mb_annual=mb_model.get_annual_mb(heights=surface_m, fl_id=-1, year=mb_years, fls=fls)
-
+    #mb_annual=mb_model.get_annual_mb(heights=surface_m, fl_id=-1, year=mb_years, fls=fls)
+    
+    mb_annual=flowline.apparent_mb
     Terminus_mb = mb_annual*cfg.SEC_IN_YEAR
+    print("Terminus_mb is:",Terminus_mb)
     # slice up to index+1 to include the last nonzero value
     # profile: NDarray
     #     The current profile (x, surface, bed,width) as calculated by the base model
@@ -1295,7 +1302,7 @@ def distribute_thickness_interp(gdir, add_slope=True, smooth_radius=None,
     return thick
 
 
-def calving_flux_from_depth(gdir, model=None,mb_years=None,k=None, water_level=None, water_depth=None,
+def calving_flux_from_depth(gdir, mb_model=None,mb_years=None,k=None, water_level=None, water_depth=None,
                             thick=None, fixed_water_depth=False):
     """Finds a calving flux from the calving front thickness.
 
@@ -1360,19 +1367,22 @@ def calving_flux_from_depth(gdir, model=None,mb_years=None,k=None, water_level=N
         # Correct thickness with prescribed water depth
         # If fixed_water_depth=True then we forget about t_altitude
         thick = water_depth + free_board
-        print("the thick in inversion is",thick)
+        print("the water depth is :",water_depth)
+        print("the free board is :",free_board)
+        print("the thick in inversion now is",thick)
 
     #flux = k * thick * water_depth * width / 1e9
     # Fa_Sermeq_speed_law to calculate calving
     # We do calving only if there is some ice above wl
     last_above_wl = np.nonzero((fl.surface_h > water_level) &(thick > 0))[0][-1]
-    bed_h = fl.surface_h - thick
+    print("the last above wl is :",last_above_wl)
+    bed_h = fl.surface_h - cl['thick']
     if bed_h[last_above_wl] > water_level:
-        print('The terminus is still above the water leverl')
+        print('The terminus bed is still above the water leverl')
     else:
-        print('The terminus is already under the water level')
+        print('The terminus bed is already under the water level')
     #TODO the k should be the updated k, or the defaulted k
-    s_fa = fa_sermeq_speed_law_inv(gdir=gdir, mb_model=model,mb_years=mb_years, last_above_wl=last_above_wl,v_scaling = 1, verbose = False,tau0 = k,
+    s_fa = fa_sermeq_speed_law_inv(gdir=gdir, mb_model=mb_model,mb_years=mb_years, last_above_wl=last_above_wl,v_scaling = 1, verbose = True,tau0 = k,
                              mu = 0.01,trim_profile = 0)
     flux = s_fa ['Sermeq_fa']*s_fa['Thickness_termi']*s_fa['Width_termi']/1e9
     print("the flux based on fa_sermeq is,",flux)
@@ -1438,7 +1448,7 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
 
     # Store for statistics
     gdir.add_to_diagnostics('volume_before_calving', v_ref)
-
+    print("volume before calving is:", v_ref)
     # Get the relevant variables
     cls = gdir.read_pickle('inversion_input')[-1]
     slope = cls['slope_angle'][-1]
@@ -1449,8 +1459,9 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
     min_slope = 'min_slope_ice_caps' if gdir.is_icecap else 'min_slope'
     min_slope = np.deg2rad(cfg.PARAMS[min_slope])
     slope = utils.clip_array(slope, min_slope, np.pi / 2.)
-
+    
     # Check that water level is within given bounds
+    print("water level is :",water_level)
     if water_level is None:
         th = cls['hgt'][-1]
         if gdir.is_lake_terminating:
@@ -1458,11 +1469,12 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
         else:
             vmin, vmax = cfg.PARAMS['free_board_marine_terminating']
             water_level = utils.clip_scalar(0, th - vmax, th - vmin)
+        print("water level now is :",water_level)
 
     # The functions all have the same shape: they decrease, then increase
     # We seek the absolute minimum first
     def to_minimize(h):
-        fl = calving_flux_from_depth(gdir, model=mb_model,mb_years=mb_years,water_level=water_level,
+        fl = calving_flux_from_depth(gdir, mb_model=mb_model,mb_years=mb_years,water_level=water_level,
                                      water_depth=h)
 
         flux = fl['flux'] * 1e9 / cfg.SEC_IN_YEAR
@@ -1478,7 +1490,7 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
         # This happens, and means that this glacier simply can't calve
         # This is an indicator for physics not matching, often an unrealistic
         # slope of free-board
-        out = calving_flux_from_depth(gdir,model=mb_model,mb_years=mb_years,water_level=water_level)
+        out = calving_flux_from_depth(gdir,mb_model=mb_model,mb_years=mb_years,water_level=water_level)
 
         log.warning('({}) find_inversion_calving_from_any_mb: could not find '
                     'calving flux.'.format(gdir.rgi_id))
@@ -1501,10 +1513,10 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
     # OK, we now find the zero between abs min and an arbitrary high front
     abs_min = abs_min['x'][0]
     opt = optimize.brentq(to_minimize, abs_min, 1e4)
-
+    print("water depth now is :",opt)
     # Give the flux to the inversion and recompute
     # This is the thick guaranteeing OGGM Flux = Calving Law Flux
-    out = calving_flux_from_depth(gdir,model=mb_model,mb_years=mb_years,water_level=water_level,
+    out = calving_flux_from_depth(gdir,mb_model=mb_model,mb_years=mb_years,water_level=water_level,
                                   water_depth=opt)
     f_calving = out['flux']
 
@@ -1519,7 +1531,7 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
         mass_conservation_inversion(gdir, water_level=water_level,
                                     glen_a=glen_a, fs=fs)
 
-    out = calving_flux_from_depth(gdir,model=mb_model,mb_years=mb_years, water_level=water_level)
+    out = calving_flux_from_depth(gdir,mb_model=mb_model,mb_years=mb_years, water_level=water_level)
 
     fl = gdir.read_pickle('inversion_flowlines')[-1]
     f_calving = (fl.flux[-1] * (gdir.grid.dx ** 2) * 1e-9 /
