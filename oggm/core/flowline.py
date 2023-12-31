@@ -1725,7 +1725,7 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
     # mbmod_fl = massbalance.MultipleFlowlineMassBalance(model.gdir, fls=fls, use_inversion_flowlines=True,
     #                                                    mb_model_class=MonthlyTIModel)
     mb_annual=model.mb_model.get_annual_mb(heights=surface_m, fl_id=-1, year=model.yr, fls=model.fls)
-
+    print("mb_annual is (m s-1):",mb_annual,"in year",model.yr)
     Terminus_mb = mb_annual*cfg.SEC_IN_YEAR
     # slice up to index+1 to include the last nonzero value
     # profile: NDarray
@@ -1969,6 +1969,7 @@ class FluxBasedModel(FlowlineModel):
                                              **kwargs)
 
         self.fixed_dt = fixed_dt
+        print("the fixed dt is:",fixed_dt)
         if min_dt is None:
             min_dt = cfg.PARAMS['cfl_min_dt']
         if cfl_number is None:
@@ -2003,6 +2004,7 @@ class FluxBasedModel(FlowlineModel):
         self.flux_gate = utils.tolist(flux_gate, length=len(self.fls))
         self.flux_gate_m3_since_y0 = 0.
         if flux_gate_thickness is not None:
+            print("flux_gate_thickness now is not None")
             # Compute the theoretical ice flux from the slope at the top
             flux_gate_thickness = utils.tolist(flux_gate_thickness,
                                                length=len(self.fls))
@@ -2032,6 +2034,7 @@ class FluxBasedModel(FlowlineModel):
                 fg(self.yr)
             except TypeError:
                 # If not, make one
+                print('#######TypeError#######')
                 self.flux_gate[i] = partial(flux_gate_with_build_up,
                                             flux_value=fg,
                                             flux_gate_yr=(flux_gate_build_up +
@@ -2091,7 +2094,7 @@ class FluxBasedModel(FlowlineModel):
             thick = fl.thick
             section = fl.section
             dx = fl.dx_meter
-            print("step")
+            print("step:",dt,"fl_id:",fl_id)
             # If it is a tributary, we use the branch it flows into to compute
             # the slope of the last grid point
             is_trib = trib[0] is not None
@@ -2110,6 +2113,8 @@ class FluxBasedModel(FlowlineModel):
                 # be less at the calving front. The result is that calving
                 # front "free boards" are quite high.
                 # Note that 0 is arbitrary, it could be any value below SL
+                print("We lower the max possible ice deformation",
+                      "by clipping the surface slope here")
                 surface_h = utils.clip_min(surface_h, self.water_level)
 
             # Staggered gradient
@@ -2175,7 +2180,10 @@ class FluxBasedModel(FlowlineModel):
             # change only if step dt is larger than the chosen dt
             if self.fixed_dt < dt:
                 dt = self.fixed_dt
-
+        # Calculate total discharged volume
+        if self.do_calving:
+            self.discharge_m3_since_y0 += self.discharge * dt
+        
         # A second loop for the mass exchange
         for fl_id, fl in enumerate(self.fls):
 
@@ -2249,8 +2257,7 @@ class FluxBasedModel(FlowlineModel):
                                         variable_yield=self.variable_yield, mu = 0.01,trim_profile = 0)
                     q_calving = s_fa ['Sermeq_fa']*s_fa['Thickness_termi']*s_fa['Width_termi']/cfg.SEC_IN_YEAR
                     print("after calving")
-
-                    print
+                    print("q_calving is (m3 s-1):",q_calving)
 
                 except RuntimeError:
                     traceback.print_exception(*sys.exc_info())
