@@ -1058,7 +1058,7 @@ class FlowlineModel(object):
             glacier wide diagnostic files - all other outputs are set
             to constants during "spinup"
         dynamic_spinup_min_ice_thick : float or None
-            if set to an float, additional variables are saved which are useful
+            if set to a float, additional variables are saved which are useful
             in combination with the dynamic spinup. In particular only grid
             points with a minimum ice thickness are considered for the total
             area or the total volume. This is useful to smooth out yearly
