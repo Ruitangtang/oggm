@@ -248,7 +248,7 @@ class Flowline(Centerline):
 
     @property
     def volume_bwl_km3(self):
-        return self.volume_bwl_m3 * 1e-9    
+        return self.volume_bwl_m3 * 1e-9
         
     @property
     def volume_asl_m3(self):
