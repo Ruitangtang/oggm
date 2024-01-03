@@ -2176,6 +2176,9 @@ class FluxBasedModel(FlowlineModel):
                                       'implemented yet')
         self.calving_limiter_frac = calving_limiter_frac
         print("initialized fluxmodel")
+        # Stretching distance for frontal dynamics
+        if self.do_calving:
+            self.stretch_dist_p = cfg.PARAMS.get('stretch_dist', 8e3)
         # Flux gate
         self.flux_gate = utils.tolist(flux_gate, length=len(self.fls))
         self.flux_gate_m3_since_y0 = 0.
@@ -2473,7 +2476,7 @@ class FluxBasedModel(FlowlineModel):
                     try:
                         # Transit the unit of tau0 to Pa, based on the equation self.calving_k= calving_k/cfg.SEC_IN_YEAR
                         # tau0 = self.calving_k * cfg.SEC_IN_YEAR
-                        s_fa = self.calving_law(self, last_above_wl,v_scaling = 1, verbose = False,tau0 = (self.calving_k)*cfg.SEC_IN_YEAR,
+                        s_fa = self.calving_law(self, last_above_wl,v_scaling = 1, verbose = False,tau0 = k*cfg.SEC_IN_YEAR,
                                             variable_yield=self.variable_yield, mu = 0.01,trim_profile = 0)
                         qq_calving = s_fa ['Sermeq_fa']*s_fa['Thickness_termi']*s_fa['Width_termi']/cfg.SEC_IN_YEAR
                         print("after calving")
@@ -3870,7 +3873,9 @@ def init_present_time_glacier(gdir, filesuffix='',
 
         # Get the data to make the model flowlines
         line = cl.line
+        section = inv['volume'] / (cl.dx * map_dx)
         surface_h = cl.surface_h
+        bed_h = surface_h - inv['thick']
         widths_m = cl.widths * map_dx
         assert np.all(widths_m > 0)
 
@@ -3939,6 +3944,7 @@ def init_present_time_glacier(gdir, filesuffix='',
             section = np.append(section, dic_ds['bedshapes'] * 0.)
             surface_h = np.append(surface_h, dic_ds['surface_h'])
             bed_h = np.append(bed_h, dic_ds['surface_h'])
+            widths_m = np.append(widths_m, dic_ds['bedshapes'] * 0.)
             line = dic_ds['full_line']
 
         if gdir.is_tidewater and inv['is_last']:
@@ -4104,12 +4110,16 @@ def flowline_model_run(gdir, output_filesuffix=None, mb_model=None,
         diag = gdir.get_diagnostics()
         fs = diag.get('inversion_fs', cfg.PARAMS['fs'])
         glen_a = diag.get('inversion_glen_a', cfg.PARAMS['glen_a'])
+        calving_k = diag.get('calving_inversion_k',
+                             cfg.PARAMS['inversion_calving_k'])
     else:
         fs = cfg.PARAMS['fs']
         glen_a = cfg.PARAMS['glen_a']
+        calving_k = cfg.PARAMS['calving_k']
 
     kwargs.setdefault('fs', fs)
     kwargs.setdefault('glen_a', glen_a)
+    kwargs.setdefault('calving_k', calving_k)    
 
     if store_model_geometry is None:
         store_model_geometry = cfg.PARAMS['store_model_geometry']
