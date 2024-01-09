@@ -1992,7 +1992,8 @@ def apparent_mb_from_any_mb(gdir, mb_model=None,
     # Do we have a calving glacier?
     cmb = calving_mb(gdir)
     is_calving = cmb != 0
-
+    print('cmb is (calving mass loss with unit mm a-1):',cmb)
+    print('is calving:',is_calving)
     # For each flowline compute the apparent MB
     fls = gdir.read_pickle('inversion_flowlines')
 
@@ -2012,26 +2013,34 @@ def apparent_mb_from_any_mb(gdir, mb_model=None,
 
     # Unchanged SMB
     o_smb = np.mean(mb_model.get_specific_mb(fls=fls, year=mb_years))
-
+    print("o_smb is (mm w.e. yr-1):",o_smb)
     def to_minimize(residual_to_opt):
         return o_smb + residual_to_opt - cmb
 
     residual = optimize.brentq(to_minimize, -1e5, 1e5)
-
+    print("residual is (mm w.e. yr-1):",residual)
     # Reset flux
     for fl in fls:
         fl.reset_flux()
 
     # Flowlines in order to be sure
     rho = cfg.PARAMS['ice_density']
+    print("rho of ice is (kg m-3)",rho)  
     for fl_id, fl in enumerate(fls):
         mbz = 0
         for yr in mb_years:
             mbz += mb_model.get_annual_mb(fl.surface_h, year=yr,
                                           fls=fls, fl_id=fl_id)
         mbz = mbz / len(mb_years)
+        print("mbz is",mbz)
         fl.set_apparent_mb(mbz * cfg.SEC_IN_YEAR * rho + residual,
                            is_calving=is_calving)
+        print('*****************************************************************')
+        print("the apparent mb is set, and the apparent_mb  is :",fl.apparent_mb)
+        print("the flux is  :",fl.flux)
+        print("the flux out is :",fl.flux_out)
+        print("correct the flux is:",fl.flux_needs_correction)
+        print('*****************************************************************')
         if fl_id < len(fls) and fl.flux_out < -1e3:
             log.warning('({}) a tributary has a strongly negative flux. '
                         'Inversion works but is physically quite '
@@ -2041,6 +2050,7 @@ def apparent_mb_from_any_mb(gdir, mb_model=None,
     _check_terminus_mass_flux(gdir, fls)
     gdir.add_to_diagnostics('apparent_mb_from_any_mb_residual', residual)
     gdir.write_pickle(fls, 'inversion_flowlines')
+    print("the apparent_mb_from_any_mb is successful")
 
 
 @entity_task(log)
