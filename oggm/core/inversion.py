@@ -1569,7 +1569,7 @@ def calving_flux_from_depth(gdir, mb_model=None,mb_years=None,k=None, water_leve
 @entity_task(log, writes=['diagnostics'])
 def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
                                        water_level=None,
-                                       glen_a=None, fs=None,calving_law_inv=None):
+                                       glen_a=None, fs=None,calving_law_inv=fa_sermeq_speed_law_inv):
     """Optimized search for a calving flux compatible with the bed inversion.
 
     See Recinos et al. (2019) for details. This task is an update to
