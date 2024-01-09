@@ -141,6 +141,7 @@ def prepare_for_inversion(gdir,
 
     # Write out
     gdir.write_pickle(towrite, 'inversion_input')
+    print("prepare_for_inversion is successful")
 
 
 def _inversion_poly(a3, a0):
@@ -1084,7 +1085,7 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
 
     # Store for statistics
     gdir.add_to_diagnostics('volume_before_calving', v_ref)
-
+    print("volume before calving is:", v_ref)
     # Get the relevant variables
     cls = gdir.read_pickle('inversion_input')[-1]
     slope = cls['slope_angle'][-1]
@@ -1157,7 +1158,7 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
     log.info('({}) find_inversion_calving_from_any_mb: found calving flux of '
              '{:.03f} km3 yr-1'.format(gdir.rgi_id, f_calving))
     gdir.inversion_calving_rate = f_calving
-
+    print("The inversion calving rate now is (km3 yr-1):",gdir.inversion_calving_rate)
     with utils.DisableLogger():
         massbalance.apparent_mb_from_any_mb(gdir, mb_model=mb_model,
                                             mb_years=mb_years)
