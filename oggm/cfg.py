@@ -570,7 +570,8 @@ def initialize_minimal(file=None, logging_level='INFO', params=None):
            'tidewater_type', 'store_model_geometry', 'use_winter_prcp_fac',
            'store_diagnostic_variables', 'store_fl_diagnostic_variables',
            'geodetic_mb_period', 'store_fl_diagnostics', 'winter_prcp_fac_ab',
-           'prcp_fac', 'downstream_line_shape', 'keep_multipolygon_outlines','calving_law_inv']
+           'prcp_fac', 'downstream_line_shape', 'keep_multipolygon_outlines','calving_law_inv',
+           'use_shape_factor_for_fluxbasedmodel']
     for k in ltr:
         cp.pop(k, None)
 
