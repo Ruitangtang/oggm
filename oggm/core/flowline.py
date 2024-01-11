@@ -1473,8 +1473,13 @@ class FlowlineModel(object):
                             ds['volume_awl_m3'].data[j, :] = fl.volume_awl_m3
                         if 'ice_velocity' in ovars_fl and (yr > self.y0):
                             # Velocity can only be computed with dynamics
-                            var = self.u_stag[fl_id]
-                            val = (var[1:fl.nx + 1] + var[:fl.nx]) / 2 * self._surf_vel_fac
+                            #var = self.u_stag[fl_id]
+                            #val = (var[1:fl.nx + 1] + var[:fl.nx]) / 2 * self._surf_vel_fac
+                            var = self.u_drag[fl_id]
+                            var2 = self.u_slide[fl_id]
+                            val = ((var[1:fl.nx + 1] + var[:fl.nx]) / 2 * 
+                                    self._surf_vel_fac + 
+                                    (var2[1:fl.nx + 1] + var2[:fl.nx]) / 2)
                             ds['ice_velocity_myr'].data[j, :] = val * cfg.SEC_IN_YEAR
                         if 'dhdt' in ovars_fl and (yr > self.y0):
                             # dhdt can only be computed after one year
@@ -2181,9 +2186,9 @@ class FluxBasedModel(FlowlineModel):
         #self.calving_k = calving_kS
         #self.calving_k = calving_k / cfg.SEC_IN_YEAR
         #TODO put conditions for different calving laws
-        if calving_use_limiter is None:
-            calving_use_limiter = cfg.PARAMS['calving_use_limiter']
-        self.calving_use_limiter = calving_use_limiter
+        # if calving_use_limiter is None:
+        #     calving_use_limiter = cfg.PARAMS['calving_use_limiter']
+        # self.calving_use_limiter = calving_use_limiter
         if calving_limiter_frac is None:
             calving_limiter_frac = cfg.PARAMS['calving_limiter_frac']
         if variable_yield is None:
@@ -2193,6 +2198,7 @@ class FluxBasedModel(FlowlineModel):
             raise NotImplementedError('calving limiter other than 0 not '
                                       'implemented yet')
         self.calving_limiter_frac = calving_limiter_frac
+        self.ovars = cfg.PARAMS['store_diagnostic_variables']
         print("initialized fluxmodel")
         # Stretching distance for frontal dynamics
         if self.do_calving:
@@ -2251,6 +2257,7 @@ class FluxBasedModel(FlowlineModel):
         self.shapefac_stag = []
         self.flux_stag = []
         self.trib_flux = []
+        self.water_depth_stag = []  # this is a constant, we compute it below
         for fl, trib in zip(self.fls, self._tributary_indices):
             nx = fl.nx
             # This is not staggered
@@ -2268,6 +2275,11 @@ class FluxBasedModel(FlowlineModel):
             self.u_slide.append(np.zeros(nx+1))
             self.shapefac_stag.append(np.ones(nx+1))  # beware the ones!
             self.flux_stag.append(np.zeros(nx+1))
+            # Staggered water depth (constant)
+            water_depth_stag = np.zeros(nx + 1)
+            water_depth_stag[1:-1] = (fl.water_depth[0:-1] + fl.water_depth[1:]) / 2.
+            water_depth_stag[[0, -1]] = fl.water_depth[[0, -1]]
+            self.water_depth_stag.append(water_depth_stag)            
 
     def step(self, dt):
         """Advance one step."""
@@ -2295,13 +2307,15 @@ class FluxBasedModel(FlowlineModel):
             u_drag = self.u_drag[fl_id]
             u_slide = self.u_slide[fl_id]
             flux_gate = self.flux_gate[fl_id]
-
+            water_depth_stag = self.water_depth_stag[fl_id]
             # Flowline state
             surface_h = fl.surface_h
             thick = fl.thick
             width = fl.widths_m
             section = fl.section
             dx = fl.dx_meter
+            water_depth = fl.water_depth
+            calving_flux = 0.
             depth = utils.clip_min(0,self.water_level - fl.bed_h)
             print("step:",dt,"fl_id:",fl_id)
 
@@ -2316,18 +2330,18 @@ class FluxBasedModel(FlowlineModel):
                 section = np.append(section, section[-1])
                 width = np.append(width, width[-1])
                 depth = np.append(depth, depth[-1])
-            elif self.do_calving and self.calving_use_limiter:
-                # We lower the max possible ice deformation
-                # by clipping the surface slope here. It is completely
-                # arbitrary but reduces ice deformation at the calving front.
-                # I think that in essence, it is also partly
-                # a "calving process", because this ice deformation must
-                # be less at the calving front. The result is that calving
-                # front "free boards" are quite high.
-                # Note that 0 is arbitrary, it could be any value below SL
-                print("We lower the max possible ice deformation",
-                      "by clipping the surface slope here")
-                surface_h = utils.clip_min(surface_h, self.water_level)
+            # elif self.do_calving and self.calving_use_limiter:
+            #     # We lower the max possible ice deformation
+            #     # by clipping the surface slope here. It is completely
+            #     # arbitrary but reduces ice deformation at the calving front.
+            #     # I think that in essence, it is also partly
+            #     # a "calving process", because this ice deformation must
+            #     # be less at the calving front. The result is that calving
+            #     # front "free boards" are quite high.
+            #     # Note that 0 is arbitrary, it could be any value below SL
+            #     print("We lower the max possible ice deformation",
+            #           "by clipping the surface slope here")
+            #     surface_h = utils.clip_min(surface_h, self.water_level)
 
             # Staggered gradient
             slope_stag[0] = 0
@@ -2340,7 +2354,10 @@ class FluxBasedModel(FlowlineModel):
 
             # Staggeered depth
             depth_stag[1:-1] = (depth[0:-1] + depth[1:]) / 2.
-            depth_stag[[0, -1]] = depth[[0, -1]]            
+            depth_stag[[0, -1]] = depth[[0, -1]]   
+            # Staggered section
+            section_stag[1:-1] = (section[0:-1] + section[1:]) / 2.
+            section_stag[[0, -1]] = section[[0, -1]]         
 
             # Resetting variables (necessary?)
             print("************** start to reset variables **************")
@@ -2526,9 +2543,9 @@ class FluxBasedModel(FlowlineModel):
                 u_stag[:] = (thick_stag**(N+1)) * self._fd * rhogh * sf_stag**N + \
                         (thick_stag**(N-1)) * self.fs * rhogh
 
-            # Staggered section
-            section_stag[1:-1] = (section[0:-1] + section[1:]) / 2.
-            section_stag[[0, -1]] = section[[0, -1]]
+                # Staggered section
+                section_stag[1:-1] = (section[0:-1] + section[1:]) / 2.
+                section_stag[[0, -1]] = section[[0, -1]]
 
             # Staggered flux rate
             flux_stag[:] = u_stag * section_stag
@@ -2747,7 +2764,7 @@ class FluxBasedModel(FlowlineModel):
                 fl.calving_bucket_m3 += q_calving * dt
                 self.calving_m3_since_y0 += q_calving * dt
                 self.calving_rate_myr += (q_calving / section[last_above_wl] *
-                                        cfg.SEC_IN_YEAR)
+                                          cfg.SEC_IN_YEAR)
 
                 # See if we have ice below sea-water/flotation to clean out first
                 #below_sl = (fl.surface_h < self.water_level) & (fl.thick > 0)
@@ -2769,8 +2786,8 @@ class FluxBasedModel(FlowlineModel):
                 elif to_remove > 0 and last_above_wl >= self.last_before:
                     # We can only remove part of if
                     section[below_wl] = 0
-                    section[last_above_wl+1] = ((to_remove - fl.calving_bucket_m3)
-                                                / fl.dx_meter)
+                    section[last_above_wl+1] = ((to_remove - 
+                                                 fl.calving_bucket_m3)/ fl.dx_meter)
                     fl.calving_bucket_m3 = 0
                 elif to_remove > 0:
                     # Else, we remove everything below flotation
@@ -2879,9 +2896,15 @@ class FluxBasedModel(FlowlineModel):
         df['slope'] = (var[1:nx+1] + var[:nx])/2
         var = self.flux_stag[fl_id]
         df['ice_flux'] = (var[1:nx+1] + var[:nx])/2
-        var = self.u_stag[fl_id]
-        df['ice_velocity'] = (var[1:nx+1] + var[:nx])/2
-        df['surface_ice_velocity'] = df['ice_velocity'] * self._surf_vel_fac
+        # var = self.u_stag[fl_id]
+        # df['ice_velocity'] = (var[1:nx+1] + var[:nx])/2
+        # df['surface_ice_velocity'] = df['ice_velocity'] * self._surf_vel_fac
+        var = self.u_drag[fl_id]
+        var2 = self.u_slide[fl_id]
+        _u_slide = (var2[1:nx+1] + var2[:nx])/2
+        df['ice_velocity'] = (var[1:nx+1] + var[:nx])/2 + _u_slide
+        df['surface_ice_velocity'] = ((df['ice_velocity'] * self._surf_vel_fac) +
+                                      _u_slide)
         var = self.shapefac_stag[fl_id]
         df['shape_fac'] = (var[1:nx+1] + var[:nx])/2
 

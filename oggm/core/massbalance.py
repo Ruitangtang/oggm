@@ -1899,6 +1899,7 @@ def _check_terminus_mass_flux(gdir, fls):
     # This variable is in "sensible" units normalized by width
     flux = fls[-1].flux_out
     aflux = flux * (gdir.grid.dx ** 2) / rho * 1e-9  # km3 ice per year
+    print("aflux is :",aflux)
 
     # If not marine and a bit far from zero, warning
     if cmb == 0 and not np.allclose(flux, 0, atol=0.01):
@@ -2021,12 +2022,16 @@ def apparent_mb_from_any_mb(gdir, mb_model=None,
 
     o_smb = np.mean(mb_model.get_specific_mb(fls=fls, year=mb_years))
     print("o_smb is (mm w.e. yr-1):",o_smb)
-
+    print("cmb is ",cmb)
     def to_minimize(residual_to_opt):
         return o_smb + residual_to_opt - cmb
 
-    residual = optimize.brentq(to_minimize, -1e5, 1e5)
-    print("residual is (mm w.e. yr-1):",residual)
+    try:
+        residual = optimize.brentq(to_minimize, -1e5, 1e5)
+        print("residual is (mm w.e. yr-1):",residual)
+    except:
+        print("------------Something is wrong when calculating residul------------")
+
     # Reset flux
     for fl in fls:
         fl.reset_flux()
@@ -2045,7 +2050,7 @@ def apparent_mb_from_any_mb(gdir, mb_model=None,
         fl.set_apparent_mb(mbz * cfg.SEC_IN_YEAR * rho + residual,
                            is_calving=is_calving)
         print('*****************************************************************')
-        print("the apparent mb is set, and the apparent_mb  is :",fl.apparent_mb)
+        print("the apparent mb is set, and the apparent_mb  is (mm a-1) :",fl.apparent_mb)
         print("the flux is  :",fl.flux)
         print("the flux out is :",fl.flux_out)
         print("correct the flux is:",fl.flux_needs_correction)

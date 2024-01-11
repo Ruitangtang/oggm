@@ -268,7 +268,7 @@ def sia_thickness_via_optim(slope, width, flux, rel_h=1, a_factor=1,
     def to_minimize(h):
         u_drag = (rho * cfg.G * slope * h * a_factor)**n * h * fd
         u_slide = (rho * cfg.G * slope * a_factor)**n * fs * h**(n-1) * rel_h
-        u = u_drag + u_slide
+        u = u_drag + u_slide 
 
         if shape == 'parabolic':
             sect = 2./3. * width * h

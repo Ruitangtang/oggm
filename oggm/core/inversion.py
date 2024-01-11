@@ -52,7 +52,7 @@ MIN_WIDTH_FOR_INV = 10
 
 
 @entity_task(log, writes=['inversion_input'])
-def prepare_for_inversion(gdir,add_debug_var=False,
+def prepare_for_inversion(gdir, add_debug_var=False,
                           invert_with_rectangular=True,
                           invert_all_rectangular=False,
                           invert_with_trapezoid=True,
@@ -160,7 +160,7 @@ def _inversion_simple(a3, a0):
     return (-a0)**(1./5.)
 
 
-def _compute_thick(a0s, a3, flux_a0, shape_factor,  _inv_function):
+def _compute_thick(a0s, a3, flux_a0, shape_factor, _inv_function):
     """Content of the original inner loop of the mass-conservation inversion.
 
     Put here to avoid code duplication.
@@ -358,7 +358,7 @@ def sia_thickness(slope, width, flux, rel_h=1, a_factor=1, shape='rectangular',
         log.info('Shape factor {:s} used, took {:d} iterations for '
                  'convergence.'.format(shape_factor, i))
 
-    return _compute_thick(a0, a3, flux_a0,sf, _inv_function)
+    return _compute_thick(a0, a3, flux_a0, sf, _inv_function)
 
 
 def find_sia_flux_from_thickness(slope, width, thick, glen_a=None, fs=None,
@@ -577,8 +577,8 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
 #    f_b = utils.clip_min(1e-3,cl['hgt'][-1] - water_level)
 #    out_thick[-1] = (((RHO_SEA / RHO_ICE) * min_rel_h * f_b) / 
 #                     ((RHO_SEA / RHO_ICE) * min_rel_h - min_rel_h + 1))
-    #bed_m = cl['hgt'] - cl['thick']
-    bed_m=surface_m-cl['thick']
+    bed_m = cl['hgt'] - cl['thick']
+    #bed_m=surface_m-cl['thick']
     print("bed_m is:",bed_m)
     #bed_m = flowline.bed_h
     width_m = flowline.widths_m
@@ -596,7 +596,10 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
     velocity *= cfg.SEC_IN_YEAR
     print("velocity is:",velocity)
     velocity_m = velocity
-    x_m = flowline.dis_on_line*flowline.map_dx/1000
+    #x_m = flowline.dis_on_line*flowline.map_dx/1000
+    print("flowline.dis_on_line is :",flowline.dis_on_line)
+    print("flowline.map_dx is :",flowline.map_dx)
+    x_m = flowline.dis_on_line*flowline.map_dx
     print("x_m is:",x_m)
     # gdir : py:class:`oggm.GlacierDirectory`
     #     the glacier directory to process
@@ -787,9 +790,9 @@ def mass_conservation_inversion(gdir, glen_a=None, fs=None, write=True,
     rho = cfg.PARAMS['ice_density']
     rho_o = cfg.PARAMS['ocean_density']
 
-    if water_level is None:
-        water_level = 0
-
+    # if water_level is None:
+    #     water_level = 0
+    # print("water_level in the mass_conservation_inversion is :",water_level)
     # Inversion with shape factors?
     sf_func = None
     use_sf = cfg.PARAMS.get('use_shape_factor_for_inversion', None)
@@ -927,33 +930,34 @@ def mass_conservation_inversion(gdir, glen_a=None, fs=None, write=True,
                 min_shape = cfg.PARAMS['mixed_min_shape']
                 bed_shape = 4 * out_thick / w ** 2
                 is_trap = ((bed_shape < min_shape) & ~ cl['is_rectangular'] &
-                        (cl['flux'] > 0)) | is_trap
+                           (cl['flux'] > 0)) | is_trap
                 for i in np.where(is_trap)[0]:
                     try:
                         out_thick[i] = sia_thickness_via_optim(slope[i], w[i],
-                                                            cl['flux'][i],
-                                                            rel_h[i],
-                                                            a_factor[i],
-                                                            shape='trapezoid',
-                                                            t_lambda=t_lambda,
-                                                            glen_a=glen_a,
-                                                            fs=fs)
+                                                               cl['flux'][i],
+                                                               rel_h[i],
+                                                               a_factor[i],
+                                                               shape='trapezoid',
+                                                               t_lambda=t_lambda,
+                                                               glen_a=glen_a,
+                                                               fs=fs)
                         sect = (2*w[i] - t_lambda * out_thick[i]) / 2 * out_thick[i]
                         volume[i] = sect * cl['dx']
                     except ValueError:
                         # no solution error - we do with rect
                         out_thick[i] = sia_thickness_via_optim(slope[i], w[i],
-                                                            cl['flux'][i],
-                                                            rel_h[i],
-                                                            a_factor[i],
-                                                            shape='rectangular',
-                                                            glen_a=glen_a,
-                                                            fs=fs)
+                                                               cl['flux'][i],
+                                                               rel_h[i],
+                                                               a_factor[i],
+                                                               shape='rectangular',
+                                                               glen_a=glen_a,
+                                                               fs=fs)
                         is_rect[i] = True
                         is_trap[i] = False
                         volume[i] = out_thick[i] * w[i] * cl['dx']
             h_diff = h_diff - out_thick
             k += 1
+            print("k in the is iterations of mass_conservation_inversion :",k)
 
         # Sanity check
         if np.any(out_thick <= -1e-2):
@@ -975,21 +979,18 @@ def mass_conservation_inversion(gdir, glen_a=None, fs=None, write=True,
                 bed_shape = 4 * out_thick / w ** 2
                 if np.any(bed_h < 0):
                     cl['volume_bsl'] = _vol_below_water(cl['hgt'], bed_h,
-                                                        bed_shape, out_thick,
-                                                        w,
+                                                        bed_shape, out_thick, w,
                                                         cl['is_rectangular'],
                                                         cl['is_trapezoid'],
                                                         fac, t_lambda,
                                                         cl['dx'], 0)
                 if water_level is not None and np.any(bed_h < water_level):
                     cl['volume_bwl'] = _vol_below_water(cl['hgt'], bed_h,
-                                                        bed_shape, out_thick,
-                                                        w,
+                                                        bed_shape, out_thick, w,
                                                         cl['is_rectangular'],
                                                         cl['is_trapezoid'],
                                                         fac, t_lambda,
-                                                        cl['dx'],
-                                                        water_level)
+                                                        cl['dx'], water_level)
             except KeyError:
                 # cl['hgt'] is not available on old prepro dirs
                 pass
@@ -1001,7 +1002,7 @@ def mass_conservation_inversion(gdir, glen_a=None, fs=None, write=True,
         gdir.add_to_diagnostics('inversion_glen_a', glen_a)
         gdir.add_to_diagnostics('inversion_fs', fs)
 
-    print("==================== mass_conservation_inversion is successful ====================")
+    #print("==================== mass_conservation_inversion is successful ====================")
 
     return out_volume
 
@@ -1547,7 +1548,7 @@ def calving_flux_from_depth(gdir, mb_model=None,mb_years=None,k=None, water_leve
         print("the free board is :",free_board)
         print("the thick in inversion now is",thick)
     if calving_law_inv == fa_sermeq_speed_law_inv :
-        
+        print("do the fa_sermeq_speed_law_inv")
         # Fa_Sermeq_speed_law to calculate calving
         # We do calving only if there is some ice above wl
         last_above_wl = np.nonzero((fl.surface_h > water_level) &(thick > 0))[0][-1]
@@ -1639,11 +1640,19 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
     # Let's start from a fresh state
     gdir.inversion_calving_rate = 0
     with utils.DisableLogger():
-        massbalance.apparent_mb_from_any_mb(gdir, mb_model=mb_model,
+        try:
+            massbalance.apparent_mb_from_any_mb(gdir, mb_model=mb_model,
                                             mb_years=mb_years)
+            print("apparent_mb_from_any_mb running successfully")
+        except:
+            print("Something is wrong with the function apparent_mb_from_any_mb")
         prepare_for_inversion(gdir)
-        v_ref = mass_conservation_inversion(gdir, water_level=water_level,
+        try:
+            v_ref = mass_conservation_inversion(gdir, water_level=water_level,
                                             glen_a=glen_a, fs=fs)
+            print(" mass_conservation_inversion running successfully")
+        except:
+            print("Something is wrong with the function mass_conservation_inversion")
 
     # Store for statistics
     gdir.add_to_diagnostics('volume_before_calving', v_ref)
@@ -1672,6 +1681,7 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
         # freeboard given by the DEM, it seems useful to start with a lower 
         # water level in order not to underestimate the initial thickness.
         water_level = -thick0/8 if thick0 > 8*th else 0
+        print("water_level is now:,",water_level)
         if gdir.is_lake_terminating:
             water_level = th - cfg.PARAMS['free_board_lake_terminating']
         else:
@@ -1843,6 +1853,7 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
         rel_h = opt
         thick = ((rho_o/rho)*rel_h*f_b) / ((rho_o/rho) * rel_h - rel_h + 1)
         water_depth = utils.clip_min(1e-3, thick - f_b)
+
     out = calving_flux_from_depth(gdir,mb_model=mb_model,mb_years=mb_years,
                                   k=calving_k,water_level=water_level,
                                   water_depth=opt, calving_law_inv = calving_law_inv)
@@ -1858,7 +1869,7 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
                                             mb_years=mb_years)
         prepare_for_inversion(gdir)
         mass_conservation_inversion(gdir, water_level=water_level,
-                                    glen_a=glen_a, fs=fs)
+                                    glen_a=glen_a, fs=fs, min_rel_h=opt)
 
     out = calving_flux_from_depth(gdir,mb_model=mb_model,mb_years=mb_years,
                                   k=calving_k, water_level=water_level,
