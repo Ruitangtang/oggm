@@ -144,6 +144,7 @@ def prepare_for_inversion(gdir,add_debug_var=False,
 
     # Write out
     gdir.write_pickle(towrite, 'inversion_input')
+    print("prepare_for_inversion is successful")
 
 
 def _inversion_poly(a3, a0):
@@ -186,6 +187,7 @@ def _compute_thick(a0s, a3, flux_a0, shape_factor,  _inv_function):
     try:
         out_thick = np.zeros(len(a0s))
         for i,(a0,a3,Q) in enumerate(zip(a0s,a3s, flux_a0)):
+            print("the", i, "iteration in the _compute_thick")
             out_thick[i] = _inv_function(a3, a0) if Q > 0 else 0
     except TypeError:
         # Scalar
@@ -775,6 +777,8 @@ def mass_conservation_inversion(gdir, glen_a=None, fs=None, write=True,
         t_lambda = cfg.PARAMS['trapezoid_lambdas']
 
     # Check input
+    print("==================== mass_conservation_inversion Start ====================")
+    print("fs is (the sliding parameter is):",fs)
     _inv_function = _inversion_simple if fs == 0 else _inversion_poly
 
     # Ice flow params
@@ -794,10 +798,12 @@ def mass_conservation_inversion(gdir, glen_a=None, fs=None, write=True,
     elif use_sf == 'Huss':
         sf_func = utils.shape_factor_huss
 
+    print("shape factor is (sf_func):",sf_func)
     
     # Clip the slope, in rad
     min_slope = 'min_slope_ice_caps' if gdir.is_icecap else 'min_slope'
     min_slope = np.deg2rad(cfg.PARAMS[min_slope])
+    print("min slope is:",min_slope)
 
     out_volume = 0.
     do_calving = cfg.PARAMS['use_kcalving_for_inversion'] and gdir.is_tidewater
@@ -810,6 +816,7 @@ def mass_conservation_inversion(gdir, glen_a=None, fs=None, write=True,
     #     # Glacier width
     #     w = cl['width']
     for n_cl, cl in enumerate(cls):
+        print("the ", n_cl,"flowline")
         # Clip slope to avoid negative and small slopes
         slope = cl['slope_angle']
         slope = utils.clip_array(slope, min_slope, np.pi/2.)
@@ -822,12 +829,15 @@ def mass_conservation_inversion(gdir, glen_a=None, fs=None, write=True,
         h_diff = np.ones(slope.shape)
         a0s = - cl['flux_a0'] / ((rho*cfg.G*slope)**3*fd)
         out_thick = _compute_thick(a0s, a3, cl['flux_a0'], sf, _inv_function)
-   
+        print("out_thick is :",out_thick)
         # Iteratively seeking glacier state including water-depth dependent
         # processes
         while k < max_iter and np.any(h_diff > h_tol):
+            print("=========== the ",k, "iteration in mass_conservation_inversion ===========")
             h_diff = out_thick
+            
             if do_calving and n_cl==(len(cls)-1) and min_rel_h > 1:
+                print("***************** min_rel_h is >1 *****************")
                 f_b = utils.clip_min(1e-3,cl['hgt'][-1] - water_level)
                 out_thick[-1] = (((rho_o / rho) * min_rel_h * f_b) / 
                                  ((rho_o / rho) * min_rel_h - min_rel_h + 1))
@@ -865,6 +875,7 @@ def mass_conservation_inversion(gdir, glen_a=None, fs=None, write=True,
                 a_factor = (a_pull / (rho*cfg.G*slope*out_thick)) + 1
                 a_factor = np.nan_to_num(a_factor, nan=1, posinf=1, neginf=1)
             else:
+                print("***************** min_rel_h is <=1 *****************")
                 rel_h = out_thick * 0 + 1
                 a_factor = out_thick * 0 + 1
             a3s = fs / fd * rel_h
@@ -874,6 +885,7 @@ def mass_conservation_inversion(gdir, glen_a=None, fs=None, write=True,
             out_thick = utils.clip_min(out_thick, 1.5e-3) # To prevent errors
 
             if sf_func is not None:
+                print("sf_func is not none")
                 # Start iteration for shape factor with first guess of 1
                 i = 0
                 sf_diff = np.ones(slope.shape)
@@ -883,6 +895,7 @@ def mass_conservation_inversion(gdir, glen_a=None, fs=None, write=True,
                 max_sf_iter = 20
 
                 while i < max_sf_iter and np.any(sf_diff > sf_tol):
+                    print("the",i,"iteration under sf_func is not none")
                     out_thick = _compute_thick(a0s, a3, cl['flux_a0'], sf,
                                                _inv_function)
                     sf_diff[:] = sf[:]
@@ -902,44 +915,45 @@ def mass_conservation_inversion(gdir, glen_a=None, fs=None, write=True,
 
     #     out_thick = _compute_thick(a0s, a3, cl['flux_a0'], _inv_function)
 
-        # volume
-        is_rect = cl['is_rectangular']
-        fac = np.where(is_rect, 1, 2./3.)
-        volume = fac * out_thick * w * cl['dx']
+            # volume
+            is_rect = cl['is_rectangular']
+            fac = np.where(is_rect, 1, 2./3.)
+            volume = fac * out_thick * w * cl['dx']
 
-        # Now recompute thickness where parabola is too flat
-        is_trap = cl['is_trapezoid']
-        if cl['invert_with_trapezoid']:
-            min_shape = cfg.PARAMS['mixed_min_shape']
-            bed_shape = 4 * out_thick / w ** 2
-            is_trap = ((bed_shape < min_shape) & ~ cl['is_rectangular'] &
-                       (cl['flux'] > 0)) | is_trap
-            for i in np.where(is_trap)[0]:
-                try:
-                    out_thick[i] = sia_thickness_via_optim(slope[i], w[i],
-                                                           cl['flux'][i],
-                                                           rel_h[i],
-                                                           a_factor[i],
-                                                           shape='trapezoid',
-                                                           t_lambda=t_lambda,
-                                                           glen_a=glen_a,
-                                                           fs=fs)
-                    sect = (2*w[i] - t_lambda * out_thick[i]) / 2 * out_thick[i]
-                    volume[i] = sect * cl['dx']
-                except ValueError:
-                    # no solution error - we do with rect
-                    out_thick[i] = sia_thickness_via_optim(slope[i], w[i],
-                                                           cl['flux'][i],
-                                                           rel_h[i],
-                                                           a_factor[i],
-                                                           shape='rectangular',
-                                                           glen_a=glen_a,
-                                                           fs=fs)
-                    is_rect[i] = True
-                    is_trap[i] = False
-                    volume[i] = out_thick[i] * w[i] * cl['dx']
-        h_diff = h_diff - out_thick
-        k += 1
+            # Now recompute thickness where parabola is too flat
+            print("========== Start to recompute thickness where parabola is too flat ========== ")
+            is_trap = cl['is_trapezoid']
+            if cl['invert_with_trapezoid']:
+                min_shape = cfg.PARAMS['mixed_min_shape']
+                bed_shape = 4 * out_thick / w ** 2
+                is_trap = ((bed_shape < min_shape) & ~ cl['is_rectangular'] &
+                        (cl['flux'] > 0)) | is_trap
+                for i in np.where(is_trap)[0]:
+                    try:
+                        out_thick[i] = sia_thickness_via_optim(slope[i], w[i],
+                                                            cl['flux'][i],
+                                                            rel_h[i],
+                                                            a_factor[i],
+                                                            shape='trapezoid',
+                                                            t_lambda=t_lambda,
+                                                            glen_a=glen_a,
+                                                            fs=fs)
+                        sect = (2*w[i] - t_lambda * out_thick[i]) / 2 * out_thick[i]
+                        volume[i] = sect * cl['dx']
+                    except ValueError:
+                        # no solution error - we do with rect
+                        out_thick[i] = sia_thickness_via_optim(slope[i], w[i],
+                                                            cl['flux'][i],
+                                                            rel_h[i],
+                                                            a_factor[i],
+                                                            shape='rectangular',
+                                                            glen_a=glen_a,
+                                                            fs=fs)
+                        is_rect[i] = True
+                        is_trap[i] = False
+                        volume[i] = out_thick[i] * w[i] * cl['dx']
+            h_diff = h_diff - out_thick
+            k += 1
 
         # Sanity check
         if np.any(out_thick <= -1e-2):
@@ -986,6 +1000,8 @@ def mass_conservation_inversion(gdir, glen_a=None, fs=None, write=True,
         gdir.write_pickle(cls, 'inversion_output', filesuffix=filesuffix)
         gdir.add_to_diagnostics('inversion_glen_a', glen_a)
         gdir.add_to_diagnostics('inversion_fs', fs)
+
+    print("==================== mass_conservation_inversion is successful ====================")
 
     return out_volume
 
