@@ -977,13 +977,17 @@ class FlowlineModel(object):
             ts = np.append(ts, y1)
         else:
             ts = np.arange(int(self.yr), int(y1+1))
-
+        print("required model steps is :",self.required_model_steps)
+        print("the ts is :",ts)
         # Loop over the steps we want to meet
         for y in ts:
             t = (y - self.y0) * SEC_IN_YEAR
             # because of CFL, step() doesn't ensure that the end date is met
             # lets run the steps until we reach our desired date
+            print("t in the run_until is :",t)
+            print("self.t is :",self.t)
             while self.t < t:
+                print("do the step in the run_until")
                 self.step(t - self.t)
 
             # Check for domain bounds
@@ -997,6 +1001,7 @@ class FlowlineModel(object):
                 if np.any(~np.isfinite(fl.thick)):
                     raise FloatingPointError('NaN in numerical solution, '
                                              'at year: {}'.format(self.yr))
+        print("================ run_until is successful ================")
 
     def run_until_and_store(self, y1,
                             diag_path=None,
@@ -1264,7 +1269,7 @@ class FlowlineModel(object):
             diag_ds['discharge_m3'].attrs['description'] = ('Ice flux through '
                                                             'terminal boundary')
             diag_ds['discharge_m3'].attrs['unit'] = 'm 3'
-
+        print("ovars is :",ovars)
         for gi in range(10):
             vn = f'terminus_thick_{gi}'
             if vn in ovars:
@@ -1408,7 +1413,7 @@ class FlowlineModel(object):
                     thickness_previous_dhdt = {}
                     for fl_id, fl in enumerate(self.fls):
                         thickness_previous_dhdt[fl_id] = fl.thick
-
+            print("ovars_fl is :",ovars_fl)
         # First deal with spinup (we compute volume change only)
         if do_fixed_spinup:
             spinup_vol = monthly_time * 0
@@ -1438,7 +1443,7 @@ class FlowlineModel(object):
                 # Here we model run - otherwise (for spinup) we
                 # constantly store the same data
                 self.run_until(yr)
-                print("runned")
+                print("runned for the year :",yr)
             # Glacier geometry
             if (do_geom or do_fl_diag) and mo == 1:
                 for s, w, b, fl in zip(sects, widths, buckets, self.fls):
@@ -1447,11 +1452,13 @@ class FlowlineModel(object):
                     if self.is_tidewater:
                         try:
                             b[j] = fl.calving_bucket_m3
+                            print("the",j,"run and the calving_bucket_m3 is",b[j])
                         except AttributeError:
                             pass
 
                 # Flowline diagnostics
                 if do_fl_diag:
+                    print("do the flowline diagnostics")
                     for fl_id, (ds, fl) in enumerate(zip(fl_diag_dss, self.fls)):
                         # area and volume are already being taken care of above
                         if 'thickness' in ovars_fl:
@@ -1509,11 +1516,12 @@ class FlowlineModel(object):
                             )
                             fac = np.where(has_become_ice_free, 0.1, 1.)
                             ds['flux_divergence_myr'].data[j, :] = val * fac
+                    print("the flowline diagnostic is successful")
 
                 # j is the yearly index in case we have monthly output
                 # we have to count it ourselves
                 j += 1
-
+            print("Glacier geometry done")
             # Diagnostics
             if 'volume' in ovars:
                 diag_ds['volume_m3'].data[i] = self.volume_m3
@@ -1600,6 +1608,7 @@ class FlowlineModel(object):
                     ds = ds.dropna('time', subset=['ts_section'])
 
                 geom_ds.append(ds)
+            print("geom_ds is :",geom_ds)
 
         # Add the spinup volume to the diag
         if do_fixed_spinup:
@@ -1615,6 +1624,7 @@ class FlowlineModel(object):
 
         # write output?
         if do_fl_diag:
+            print("write output")
             # Unit conversions for these
             for i, ds in enumerate(fl_diag_dss):
                 dx = ds.attrs['map_dx'] * ds.attrs['dx']
@@ -2151,6 +2161,14 @@ class FluxBasedModel(FlowlineModel):
         self.min_dt = min_dt
         self.cfl_number = cfl_number
 
+        # Do we want to use shape factors?
+        self.sf_func = None
+        use_sf = cfg.PARAMS.get('use_shape_factor_for_fluxbasedmodel')
+        if use_sf == 'Adhikari' or use_sf == 'Nye':
+            self.sf_func = utils.shape_factor_adhikari
+        elif use_sf == 'Huss':
+            self.sf_func = utils.shape_factor_huss
+            
         # Calving params
         if do_kcalving is None:
             do_kcalving = cfg.PARAMS['use_kcalving_for_run']
@@ -2325,6 +2343,7 @@ class FluxBasedModel(FlowlineModel):
             depth_stag[[0, -1]] = depth[[0, -1]]            
 
             # Resetting variables (necessary?)
+            print("************** start to reset variables **************")
             h = []
             d = []
             no_ice = []
@@ -2353,17 +2372,18 @@ class FluxBasedModel(FlowlineModel):
                     sf = np.append(sf, 1.)
                 sf_stag[1:-1] = (sf[0:-1] + sf[1:]) / 2.
                 sf_stag[[0, -1]] = sf[[0, -1]]
-
+            print("self.sf_func in Step is:",self.sf_func)
             # Determine where ice bodies are; if there is no ice below
             # water_level, we fall back to the standard ice dynamics
             ice_below_wl = np.any((fl.bed_h < self.water_level) &
                                   (fl.thick > 0))
-
+            print("ice below water level is :",ice_below_wl)
             # We compute more complex dynamics when we have ice grounded below water
             if fl.has_ice() and ice_below_wl and self.do_calving:
                 ice_above_wl = ((fl.surface_h > self.water_level) &
                                 (fl.bed_h < self.water_level) &
                                 (fl.thick >= (self.rho_o / self.rho) * depth))
+                print("ice above water level is :",ice_above_wl)
                 if np.any(ice_above_wl):
                     last_above_wl = np.where(ice_above_wl)[0][-1]
                 else:
@@ -2371,12 +2391,12 @@ class FluxBasedModel(FlowlineModel):
                                                (fl.thick > 0))[0][-1]
                 last_above_wl = int(utils.clip_max(last_above_wl, 
                                                    len(fl.bed_h)-2))
-                
+                print("last_above_wl is :",last_above_wl)
                 no_ice = np.nonzero((fl.thick <= 0))[0]
                 last_ice = np.where((fl.thick[no_ice-1] > 0) & \
                                 (fl.surface_h[no_ice-1] > self.water_level))[0]
                 last_ice = no_ice[last_ice]-1
-
+                print("last ice is :",last_ice)
                 if last_ice.size == 1:
                     first_ice = np.nonzero(fl.thick[0:last_above_wl+1] > 0)[0][0]
                 elif last_ice.size > 1 and (last_ice[-2]+1 < last_above_wl+1):
@@ -2388,7 +2408,7 @@ class FluxBasedModel(FlowlineModel):
                                            > 0)[0][-1]
                 else:
                     first_ice = 0
-
+                print("first_ice is :",first_ice)
                 # Determine water depth at the front
                 h = fl.thick[last_above_wl]
                 d = h - (fl.surface_h[last_above_wl] - self.water_level)
@@ -2398,12 +2418,13 @@ class FluxBasedModel(FlowlineModel):
                 # Determine height above buoancy
                 z_a_b = utils.clip_min(0,thick_stag - depth_stag *
                                          (self.rho_o / self.rho))
-
+                print("height above buoancy is :",z_a_b)
                 # Compute net hydrostatic force at the front. One could think 
                 # about incorporating ice mélange / sea ice here as an 
                 # additional backstress term. (And also in the frontal ablation
                 # formulation below.)
                 if fl.bed_h[last_above_wl+1] < self.water_level:
+                    print("fl.bed_h[last_above_wl+1] < self.water_level")
                     pull_last = utils.clip_min(0,0.5 * G * (self.rho * h**2 -
                                                self.rho_o * d**2))
 
@@ -2434,6 +2455,7 @@ class FluxBasedModel(FlowlineModel):
                                                                  [stretch_first-1:\
                                                                   stretch_last-1])
                 stress = self.rho*G*slope_stag*thick_stag
+                print("the stress is :",stress)
 
                 # Add "stretching stress" to basal shear/driving stress
                 if fl.bed_h[last_above_wl+1] < self.water_level:
@@ -2442,16 +2464,17 @@ class FluxBasedModel(FlowlineModel):
                                                           stretch_factor *
                                                           (pull_last /
                                                            stretch_dist))
-
+                print("the stress updated as: ",stress)
                 # Compute velocities
                 u_drag[:] = thick_stag * stress**N * self._fd * sf_stag**N
-
+                print("u_drag is :",u_drag)
                 # Arbitrarily manipulating u_slide for grid cells
                 # approaching buoyancy to prevent it from going
                 # towards infinity...
+                print("z_a_b is :",z_a_b)
                 u_slide[:] = (stress**N / z_a_b) * self.fs * sf_stag**N # Not sure if sf_stag is correct here
                 u_slide = np.where(z_a_b < 0.5, 4*u_drag, u_slide)
-
+                print("u_slide is", u_slide)
                 # Force velocity beyond grounding line to be the same as the one
                 # across the grounding line. Entering uncharted (floating/shelf) 
                 # territory here...
@@ -2460,14 +2483,14 @@ class FluxBasedModel(FlowlineModel):
                     u_drag[last_above_wl+2:] = u_drag[last_above_wl+1]
 
                 u_stag[:] = u_drag + u_slide
-
+                print("u_stag is :",u_stag)
                 # Staggered section
                 # For the flux out of the last grid cell, the staggered section
                 # is set to the cross section of the calving front.
                 section_stag[1:-1] = (section[0:-1] + section[1:]) / 2.
                 section_stag[[0, -1]] = section[[0, -1]]
                 section_stag[last_above_wl+1] = section[last_above_wl]
-                
+                print("section_stag is :",section_stag)
                 # We calculate the "baseline" calving flux and discharge here to
                 # be consistent with the dynamics above
                 k = self.calving_k
@@ -2480,7 +2503,7 @@ class FluxBasedModel(FlowlineModel):
                                             variable_yield=self.variable_yield, mu = 0.01,trim_profile = 0)
                         qq_calving = s_fa ['Sermeq_fa']*s_fa['Thickness_termi']*s_fa['Width_termi']/cfg.SEC_IN_YEAR
                         print("after calving")
-                        print("q_calving is (m3 s-1):",q_calving)
+                        print("qq_calving is (m3 s-1):",qq_calving)
 
                     except RuntimeError:
                         traceback.print_exception(*sys.exc_info())
@@ -2513,15 +2536,17 @@ class FluxBasedModel(FlowlineModel):
             # Add boundary condition
             if flux_gate is not None:
                 flux_stag[0] = flux_gate(self.yr)
-
+            print("flux_stag is:",flux_gate)
             # CFL condition
             if not self.fixed_dt:
                 maxu = np.max(np.abs(u_stag))
+                print("maxu is :",maxu)
                 if maxu > cfg.FLOAT_EPS:
                     cfl_dt = self.cfl_number * dx / maxu
                 else:
                     cfl_dt = dt
-
+                print("cfl_dt is:",cfl_dt)
+                print("dt is:",dt)
                 # Update dt only if necessary
                 if cfl_dt < dt:
                     dt = cfl_dt
@@ -2558,6 +2583,7 @@ class FluxBasedModel(FlowlineModel):
             self.discharge_m3_since_y0 += self.discharge * dt
         
         # A second loop for the mass exchange
+        print("****************do the second loop for the mass exchange in Step****************")
         for fl_id, fl in enumerate(self.fls):
 
             flx_stag = self.flux_stag[fl_id]
