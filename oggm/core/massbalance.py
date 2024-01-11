@@ -2060,6 +2060,7 @@ def apparent_mb_from_any_mb(gdir, mb_model=None,
     _check_terminus_mass_flux(gdir, fls)
     gdir.add_to_diagnostics('apparent_mb_from_any_mb_residual', residual)
     gdir.write_pickle(fls, 'inversion_flowlines')
+    print("apparent_mb_from_any_mb is successful")
 
 
 @entity_task(log)
