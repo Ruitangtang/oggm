@@ -1900,7 +1900,7 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
 
     out = calving_flux_from_depth(gdir, water_level=water_level, k=calving_k,
                                   mb_model=mb_model,mb_years=mb_years,
-                                  calving_law_inv=calving_law_inv)
+                                  calving_law_inv=calving_law_inv,water_depth=water_depth)
 
     fl = gdir.read_pickle('inversion_flowlines')[-1]
     f_calving = (fl.flux[-1] * (gdir.grid.dx ** 2) * 1e-9 /
