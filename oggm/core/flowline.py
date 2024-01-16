@@ -2257,7 +2257,7 @@ class FluxBasedModel(FlowlineModel):
         self.shapefac_stag = []
         self.flux_stag = []
         self.trib_flux = []
-        self.water_depth_stag = []  # this is a constant, we compute it below
+        #self.water_depth_stag = []  # this is a constant, we compute it below
         for fl, trib in zip(self.fls, self._tributary_indices):
             nx = fl.nx
             # This is not staggered
@@ -2276,10 +2276,10 @@ class FluxBasedModel(FlowlineModel):
             self.shapefac_stag.append(np.ones(nx+1))  # beware the ones!
             self.flux_stag.append(np.zeros(nx+1))
             # Staggered water depth (constant)
-            water_depth_stag = np.zeros(nx + 1)
-            water_depth_stag[1:-1] = (fl.water_depth[0:-1] + fl.water_depth[1:]) / 2.
-            water_depth_stag[[0, -1]] = fl.water_depth[[0, -1]]
-            self.water_depth_stag.append(water_depth_stag)            
+            # water_depth_stag = np.zeros(nx + 1)
+            # water_depth_stag[1:-1] = (fl.water_depth[0:-1] + fl.water_depth[1:]) / 2.
+            # water_depth_stag[[0, -1]] = fl.water_depth[[0, -1]]
+            # self.water_depth_stag.append(water_depth_stag)            
 
     def step(self, dt):
         """Advance one step."""
@@ -2307,14 +2307,14 @@ class FluxBasedModel(FlowlineModel):
             u_drag = self.u_drag[fl_id]
             u_slide = self.u_slide[fl_id]
             flux_gate = self.flux_gate[fl_id]
-            water_depth_stag = self.water_depth_stag[fl_id]
+            #water_depth_stag = self.water_depth_stag[fl_id]
             # Flowline state
             surface_h = fl.surface_h
             thick = fl.thick
             width = fl.widths_m
             section = fl.section
             dx = fl.dx_meter
-            water_depth = fl.water_depth
+            #water_depth = fl.water_depth
             calving_flux = 0.
             depth = utils.clip_min(0,self.water_level - fl.bed_h)
             print("step:",dt,"fl_id:",fl_id)
@@ -2489,7 +2489,11 @@ class FluxBasedModel(FlowlineModel):
                 # approaching buoyancy to prevent it from going
                 # towards infinity...
                 print("z_a_b is :",z_a_b)
-                u_slide[:] = (stress**N / z_a_b) * self.fs * sf_stag**N # Not sure if sf_stag is correct here
+                print("fs is :",self.fs)
+                try:
+                    u_slide[:] = (stress**N / z_a_b) * self.fs * sf_stag**N # Not sure if sf_stag is correct here
+                except:
+                    print("something is wrong when calculating u_slide")
                 u_slide = np.where(z_a_b < 0.5, 4*u_drag, u_slide)
                 print("u_slide is", u_slide)
                 # Force velocity beyond grounding line to be the same as the one
@@ -2584,8 +2588,8 @@ class FluxBasedModel(FlowlineModel):
             # We compute MB in this loop, before mass-redistribution occurs,
             # so that MB models which rely on glacier geometry to decide things
             # (like PyGEM) can do wo with a clean glacier state
-            mbs.append(self.get_mb(fl.surface_h, self.yr,
-                                   fl_id=fl_id, fls=self.fls))
+            temp_mb=self.get_mb(fl.surface_h, self.yr,fl_id=fl_id, fls=self.fls)
+            mbs.append(temp_mb)
         print("******compute MB******")
         print("mbs is:",mbs)
 
