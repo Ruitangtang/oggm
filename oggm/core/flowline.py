@@ -2491,7 +2491,8 @@ class FluxBasedModel(FlowlineModel):
                 print("z_a_b is :",z_a_b)
                 print("fs is :",self.fs)
                 try:
-                    u_slide[:] = (stress**N / z_a_b) * self.fs * sf_stag**N # Not sure if sf_stag is correct here
+                    #u_slide[:] = (stress**N / z_a_b) * self.fs * sf_stag**N # Not sure if sf_stag is correct here
+                    u_slide[:] = (np.where(z_a_b == 0,0,stress**N / z_a_b)) * self.fs * sf_stag**N 
                 except:
                     print("something is wrong when calculating u_slide")
                 u_slide = np.where(z_a_b < 0.5, 4*u_drag, u_slide)
