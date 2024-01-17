@@ -1116,10 +1116,10 @@ class FlowlineModel(object):
         sm = cfg.PARAMS['hydro_month_' + self.mb_model.hemisphere]
 
         yrs, months = utils.floatyear_to_date(monthly_time)
-#        hyrs, hmonths = utils.calendardate_to_hydrodate(yrs, months,
-#                                                        start_month=sm)
-        cyrs, cmonths = utils.hydrodate_to_calendardate(yrs, months,
-                                                        start_month=sm)
+        hyrs, hmonths = utils.calendardate_to_hydrodate(yrs, months,
+                                                       start_month=sm)
+        # cyrs, cmonths = utils.hydrodate_to_calendardate(yrs, months,
+        #                                                 start_month=sm)
 
         # init output
         if geom_path:
@@ -1128,11 +1128,11 @@ class FlowlineModel(object):
         ny = len(yearly_time)
         if ny == 1:
             yrs = [yrs]
-            #hyrs = [hyrs]
-            cyrs = [cyrs]
+            hyrs = [hyrs]
+            #cyrs = yrs
             months = [months]
-            #hmonths = [hmonths]
-            cmonths = [cmonths]
+            hmonths = [hmonths]
+            #cmonths = months
         nm = len(monthly_time)
 
         if do_geom or do_fl_diag:
@@ -1161,10 +1161,12 @@ class FlowlineModel(object):
 
         # Coordinates
         diag_ds.coords['time'] = ('time', monthly_time)
-        diag_ds.coords['hydro_year'] = ('time', yrs)
-        diag_ds.coords['hydro_month'] = ('time', months)
-        diag_ds.coords['calendar_year'] = ('time', cyrs)
-        diag_ds.coords['calendar_month'] = ('time', cmonths)
+        # diag_ds.coords['hydro_year'] = ('time', yrs)
+        # diag_ds.coords['hydro_month'] = ('time', months)
+        diag_ds.coords['hydro_year'] = ('time', hyrs)
+        diag_ds.coords['hydro_month'] = ('time', hmonths)
+        diag_ds.coords['calendar_year'] = ('time', yrs)
+        diag_ds.coords['calendar_month'] = ('time', months)
 
         diag_ds['time'].attrs['description'] = 'Floating hydrological year'
         diag_ds['hydro_year'].attrs['description'] = 'Hydrological year'
@@ -1747,7 +1749,7 @@ def k_calving_law(model, flowline, last_above_wl):
 
 def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
                      tau0=1.5, variable_yield=None, mu=0.01,
-                     trim_profile=0):
+                     trim_profile=1):
     """
     This function is used to calculate frontal ablation given ice speed forcing,
     for lake-terminating and tidewater glaciers
