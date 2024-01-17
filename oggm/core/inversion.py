@@ -404,7 +404,7 @@ def _vol_below_water(surface_h, bed_h, bed_shape, thick, widths,
 
 def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_wl=None, v_scaling=1, verbose=False,
                      tau0=1.5, variable_yield=None, mu=0.01,
-                     trim_profile=0):
+                     trim_profile=1):
     """
     This function is used to calculate frontal ablation given ice speed forcing,
     for lake-terminating and tidewater glaciers
@@ -588,13 +588,13 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
     print("section is :",section)
     # this flux is in m3 per second
     flux = cl['flux']
-    print("flux is :",flux)
+    print("flux is (m3 per second) :",flux)
 
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", category=RuntimeWarning)
         velocity = flux / section
     velocity *= cfg.SEC_IN_YEAR
-    print("velocity is:",velocity)
+    print("velocity is (m a-1):",velocity)
     velocity_m = velocity
     #x_m = flowline.dis_on_line*flowline.map_dx/1000
     print("flowline.dis_on_line is :",flowline.dis_on_line)
@@ -612,7 +612,7 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
     #Terminus_mb = mb_annual*cfg.SEC_IN_YEAR
     Terminus_mb = mb_annual/1000 # convert the unit from mm a-1 to m a-1
 
-    print("Terminus_mb is:",Terminus_mb)
+    print("Terminus_mb is (m a-1):",Terminus_mb)
     # slice up to index+1 to include the last nonzero value
     # profile: NDarray
     #     The current profile (x, surface, bed,width) as calculated by the base model
