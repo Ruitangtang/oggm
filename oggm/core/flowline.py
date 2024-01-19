@@ -1007,7 +1007,7 @@ class FlowlineModel(object):
                             diag_path=None,
                             fl_diag_path=False,
                             geom_path=False,
-                            store_monthly_step=None,
+                            store_monthly_step='monthly',
                             stop_criterion=None,
                             fixed_geometry_spinup_yr=None,
                             dynamic_spinup_min_ice_thick=None,
@@ -1080,7 +1080,7 @@ class FlowlineModel(object):
             stores a few diagnostic variables such as the volume, area, length
             and ELA of the glacier.
         """
-
+        
         if int(y1) != y1:
             raise InvalidParamsError('run_until_and_store only accepts '
                                      'integer year dates.')
@@ -1097,12 +1097,13 @@ class FlowlineModel(object):
         # Do we have a spinup?
         do_fixed_spinup = fixed_geometry_spinup_yr is not None
         y0 = fixed_geometry_spinup_yr if do_fixed_spinup else self.yr
-
+        print("self.yr is :",self.yr)
         # Do we need to create a geometry or flowline diagnostics dataset?
         do_geom = geom_path is None or geom_path
         do_fl_diag = fl_diag_path is None or fl_diag_path
-
+        
         # time
+        print("y0 is :",y0)
         yearly_time = np.arange(np.floor(y0), np.floor(y1)+1)
 
         if store_monthly_step is None:
@@ -1114,8 +1115,15 @@ class FlowlineModel(object):
             monthly_time = np.arange(np.floor(y0), np.floor(y1)+1)
 
         sm = cfg.PARAMS['hydro_month_' + self.mb_model.hemisphere]
+        try:
+            print("y1 is :",y1)
+            print("monthly_time is:",monthly_time)
+        except:
+            print("somthing is wrong with the monthly_time, in run_until_and_store")
 
         yrs, months = utils.floatyear_to_date(monthly_time)
+        print("yrs is :",yrs)
+        print("months is :",months)
         hyrs, hmonths = utils.calendardate_to_hydrodate(yrs, months,
                                                        start_month=sm)
         # cyrs, cmonths = utils.hydrodate_to_calendardate(yrs, months,
@@ -1134,7 +1142,7 @@ class FlowlineModel(object):
             hmonths = [hmonths]
             #cmonths = months
         nm = len(monthly_time)
-
+        print("nm is :",nm)
         if do_geom or do_fl_diag:
             sects = [(np.zeros((ny, fl.nx)) * np.NaN) for fl in self.fls]
             widths = [(np.zeros((ny, fl.nx)) * np.NaN) for fl in self.fls]
