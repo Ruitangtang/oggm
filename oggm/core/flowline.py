@@ -1915,6 +1915,7 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
     surface_m = flowline.surface_h
     bed_m = flowline.bed_h
     width_m = flowline.widths_m
+    # u_stag[-1] is the main flowline
     velocity_m = model.u_stag[-1]*cfg.SEC_IN_YEAR
     x_m = flowline.dis_on_line*flowline.map_dx/1000
 
@@ -1923,8 +1924,11 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
     # fls = model.gdir.read_pickle('model_flowlines')
     # mbmod_fl = massbalance.MultipleFlowlineMassBalance(model.gdir, fls=fls, use_inversion_flowlines=True,
     #                                                    mb_model_class=MonthlyTIModel)
-    mb_annual=model.mb_model.get_annual_mb(heights=surface_m, fl_id=-1, year=model.yr, fls=model.fls)
-    print("mb_annual is (m s-1):",mb_annual,"in year",model.yr)
+    #mb_annual=model.mb_model.get_annual_mb(heights=surface_m, fl_id=-1, year=model.yr, fls=model.fls)
+    #  should call the monthly function
+    mb_annual=model.mb_model.get_monthly_mb(heights=surface_m, fl_id=-1, year=model.yr, fls=model.fls)
+
+    print("mb_annual is (m s-1):",mb_annual,"in year",model.yr,"Actually is monthly output")
     Terminus_mb = mb_annual*cfg.SEC_IN_YEAR
     # slice up to index+1 to include the last nonzero value
     # profile: NDarray
