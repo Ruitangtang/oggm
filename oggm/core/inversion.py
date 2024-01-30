@@ -31,8 +31,14 @@ Adhikari, S., Marshall, J. S.: Parameterization of lateral drag in flowline
 # Built ins
 import logging
 import warnings
+import os
+import pickle
+import sys
+import traceback
+
 
 # External libs
+import pandas as pd
 import numpy as np
 from scipy.interpolate import griddata
 from scipy import optimize
@@ -41,8 +47,12 @@ from scipy import optimize
 from oggm import utils, cfg
 from oggm import entity_task
 from oggm.core.gis import gaussian_blur
+from oggm.core.massbalance import ConstantMassBalance
 from oggm.exceptions import InvalidParamsError, InvalidWorkflowError
 from oggm.cfg import G
+
+# PyGEM
+import pygem_input as pygem_prms
 
 # Module logger
 log = logging.getLogger(__name__)
@@ -50,6 +60,8 @@ log = logging.getLogger(__name__)
 # arbitrary constant
 MIN_WIDTH_FOR_INV = 10
 
+prms_from_reg_priors=False
+prms_from_glac_cal=True
 
 @entity_task(log, writes=['inversion_input'])
 def prepare_for_inversion(gdir, add_debug_var=False,
@@ -403,8 +415,9 @@ def _vol_below_water(surface_h, bed_h, bed_shape, thick, widths,
 
 
 def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_wl=None, v_scaling=1, verbose=False,
-                     tau0=1.5, variable_yield=None, mu=0.01,
-                     trim_profile=1):
+                     tau0=1.5, variable_yield=None, mu=0.01,trim_profile=1,modelprms = None,glacier_rgi_table = None,
+                     hindcast = None, debug = None, debug_refreeze = None, option_areaconstant = None,
+                     inversion_filter = None):
     """
     This function is used to calculate frontal ablation given ice speed forcing,
     for lake-terminating and tidewater glaciers
@@ -417,7 +430,7 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
     gdir : py:class:`oggm.GlacierDirectory`
         the glacier directory to process
     mb_model : :py:class:`oggm.core.massbalance.MassBalanceModel`
-        the mass balance model to use
+        the mass balance model to use,here is PyGEMMassBalance
 #    model : oggm.core.flowline.FlowlineModel
 #        the model instance calling the function
     mb_years : array
@@ -450,6 +463,23 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
         How many grid cells at the end of the profile to ignore.  Default is 1.
         If the initial profile is set by k-calving (as in testing) there can be a
         weird cliff shape with very thin final grid point and large velocity gradient
+    
+    # parameters for the mb_model (Here is for  PyGEMMassBalance)
+     ----------
+    modelprms : dict
+        Model parameters dictionary (lrgcm, lrglac, precfactor, precgrad, ddfsnow, ddfice, tempsnow, tempchange)
+    glacier_rgi_table : pd.Series
+        Table of glacier's RGI information
+    option_areaconstant : Boolean
+        option to keep glacier area constant (default False allows glacier area to change annually)
+    frontalablation_k : float
+        frontal ablation parameter
+    debug : Boolean
+        option to turn on print statements for development or debugging of code
+    debug_refreeze : Boolean
+        option to turn on print statements for development/debugging of refreezing code
+    hindcast : Boolean
+        switch to run the model in reverse or not (may be irrelevant after converting to OGGM's setup)       
 
     Returns
     -------
@@ -567,6 +597,7 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
     # ---------------------------------------------------------------------------
     # calculate frontal ablation based on the ice thickness, speed at the terminus
     fls = gdir.read_pickle('inversion_flowlines')
+    glacier_area = fls[-1].widths_m * fls[-1].dx_meter
     flowline=fls[-1]
     print("dir of flowline in inversion_flowlines is:",dir(flowline))
     cls = gdir.read_pickle('inversion_output')
@@ -608,135 +639,156 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
     #                                                    mb_model_class=MonthlyTIModel)
     #mb_annual=mb_model.get_annual_mb(heights=surface_m, fl_id=-1, year=mb_years, fls=fls)
     
-    mb_annual=flowline.apparent_mb
-    #Terminus_mb = mb_annual*cfg.SEC_IN_YEAR
-    Terminus_mb = mb_annual/1000 # convert the unit from mm a-1 to m a-1
+    #mb_annual=flowline.apparent_mb
+    # call the real climatic mass balance from PyGEMMassBalance
+    #mb_annual=flowline.apparent_mb
 
-    print("Terminus_mb is (m a-1):",Terminus_mb)
-    # slice up to index+1 to include the last nonzero value
-    # profile: NDarray
-    #     The current profile (x, surface, bed,width) as calculated by the base model
-    #     Unlike core SERMeQ, these should be DIMENSIONAL [m].
-    profile=(x_m[:last_above_wl+1],
+    #  should call the monthly function
+    #mb_annual=mb_model.get_monthly_mb(heights=surface_m, fl_id=-1, year=model.yr, fls=fls)
+    # Get the mean mass balance for the study period along the flowline
+    # Set model parameters
+        # ----- Invert ice thickness and run simulation ------
+    if (fls is not None) and (glacier_area.sum() > 0):           
+        mean_mb_model = ConstantMassBalance(gdir,mb_model_class = mb_model,modelprms = modelprms,
+                                            glacier_rgi_table = glacier_rgi_table,
+                                            hindcast = hindcast,
+                                            debug = debug,
+                                            debug_refreez = debug_refreeze,
+                                            fls = fls, option_areaconstant = option_areaconstant,
+                                            inversion_filter = inversion_filter)
+
+        # check that this gives you 2000, 2001, ..., 2020
+        print("mean mb model for the period is:",mean_mb_model.years)
+
+        mean_mb_annual=mean_mb_model.get_annual_mb(heights=surface_m)
+        #Terminus_mb = mb_annual*cfg.SEC_IN_YEAR
+        Terminus_mb = mean_mb_annual/1000 # convert the unit from mm a-1 to m a-1
+
+        print("Terminus_mb is (m a-1):",Terminus_mb)
+        # slice up to index+1 to include the last nonzero value
+        # profile: NDarray
+        #     The current profile (x, surface, bed,width) as calculated by the base model
+        #     Unlike core SERMeQ, these should be DIMENSIONAL [m].
+        profile=(x_m[:last_above_wl+1],
                  surface_m[:last_above_wl+1],
                  bed_m[:last_above_wl+1],width_m[:last_above_wl+1])
-    # model_velocity: array
-    #     Velocity along the flowline [m/a] as calculated by the base model
-    #     Should have values for the points nearest the terminus...otherwise
-    #     doesn't matter if this is the same shape as the profile array.
-    #     TODO: Check with the remote sensing products, or at least to validate the model products
-    model_velocity=velocity_m[:last_above_wl+1]
-    # remove lowest cells if needed
-    last_index = -1 * (trim_profile + 1)
-    ## TODO: Check the flowline model, the decrease the distance between two adjacent points along the flowline, and then calculate the averaged gradient for dhdx,dhydx,dudx
-    ##
-    if isinstance(Terminus_mb, (int, float)):
-        terminus_mb = Terminus_mb
-    elif isinstance(Terminus_mb, (list, np.ndarray)):
-        terminus_mb = Terminus_mb[last_index]
-    else:
-        print("please input the correct mass balance datatype")
-    #
-    if isinstance(model_velocity, (int, float)):
-        model_velocity = v_scaling * model_velocity
-    elif isinstance(model_velocity, list):
-        model_velocity = v_scaling * np.array(model_velocity)
-    elif isinstance(model_velocity, np.ndarray):
-        model_velocity = v_scaling * model_velocity
-    else:
-        print("please input the correct velocity datatype")
-    ## Ice thickness and yield thickness nearest the terminus
-    se_terminus = profile[1][last_index]
-    bed_terminus = profile[2][last_index]
-    h_terminus = se_terminus - bed_terminus
-    width_terminus = profile[3][last_index]
-    tau_y_terminus = tau_y(tau0=tau0, bed_elev=bed_terminus, thick=h_terminus, variable_yield=variable_yield)
-    Hy_terminus = balance_thickness(yield_strength=tau_y_terminus, bed_elev=bed_terminus)
-    if isinstance(model_velocity, (int, float)):
-        U_terminus = model_velocity
-        U_adj = model_velocity
-    else:
-        U_terminus = model_velocity[last_index]  ## velocity, assuming last point is terminus
-        U_adj = model_velocity[last_index - 1]
-    ## Ice thickness and yield thickness at adjacent point
-    se_adj = profile[1][last_index - 1]
-    bed_adj = profile[2][last_index - 1]
-    H_adj = se_adj - bed_adj
-    tau_y_adj = tau_y(tau0=tau0, bed_elev=bed_adj, thick=H_adj, variable_yield=variable_yield)
-    Hy_adj = balance_thickness(yield_strength=tau_y_adj, bed_elev=bed_adj)
-    # Gradients
-    dx_term = profile[0][last_index] - profile[0][last_index - 1]  ## check grid spacing close to terminus
-    dHdx = (h_terminus - H_adj) / dx_term
-    dHydx = (Hy_terminus - Hy_adj) / dx_term
-    if np.isnan(U_terminus) or np.isnan(U_adj):
-        dUdx = np.nan  ## velocity gradient
-        ## Group the terms
-        dLdt_numerator = np.nan
-        dLdt_denominator = np.nan  ## TODO: compute dHydx
-        dLdt_viscoplastic = np.nan
-        # fa_viscoplastic = dLdt_viscoplastic -U_terminus  ## frontal ablation rate
-        fa_viscoplastic = np.nan  ## frontal ablation rate
-    else:
+        # model_velocity: array
+        #     Velocity along the flowline [m/a] as calculated by the base model
+        #     Should have values for the points nearest the terminus...otherwise
+        #     doesn't matter if this is the same shape as the profile array.
+        #     TODO: Check with the remote sensing products, or at least to validate the model products
+        model_velocity=velocity_m[:last_above_wl+1]
+        # remove lowest cells if needed
+        last_index = -1 * (trim_profile + 1)
+        ## TODO: Check the flowline model, the decrease the distance between two adjacent points along the flowline, and then calculate the averaged gradient for dhdx,dhydx,dudx
+        ##
+        if isinstance(Terminus_mb, (int, float)):
+            terminus_mb = Terminus_mb
+        elif isinstance(Terminus_mb, (list, np.ndarray)):
+            terminus_mb = Terminus_mb[last_index]
+        else:
+            print("please input the correct mass balance datatype")
+        #
+        if isinstance(model_velocity, (int, float)):
+            model_velocity = v_scaling * model_velocity
+        elif isinstance(model_velocity, list):
+            model_velocity = v_scaling * np.array(model_velocity)
+        elif isinstance(model_velocity, np.ndarray):
+            model_velocity = v_scaling * model_velocity
+        else:
+            print("please input the correct velocity datatype")
+        ## Ice thickness and yield thickness nearest the terminus
+        se_terminus = profile[1][last_index]
+        bed_terminus = profile[2][last_index]
+        h_terminus = se_terminus - bed_terminus
+        width_terminus = profile[3][last_index]
+        tau_y_terminus = tau_y(tau0=tau0, bed_elev=bed_terminus, thick=h_terminus, variable_yield=variable_yield)
+        Hy_terminus = balance_thickness(yield_strength=tau_y_terminus, bed_elev=bed_terminus)
+        if isinstance(model_velocity, (int, float)):
+            U_terminus = model_velocity
+            U_adj = model_velocity
+        else:
+            U_terminus = model_velocity[last_index]  ## velocity, assuming last point is terminus
+            U_adj = model_velocity[last_index - 1]
+        ## Ice thickness and yield thickness at adjacent point
+        se_adj = profile[1][last_index - 1]
+        bed_adj = profile[2][last_index - 1]
+        H_adj = se_adj - bed_adj
+        tau_y_adj = tau_y(tau0=tau0, bed_elev=bed_adj, thick=H_adj, variable_yield=variable_yield)
+        Hy_adj = balance_thickness(yield_strength=tau_y_adj, bed_elev=bed_adj)
         # Gradients
-        # dx_term = profile[0][last_index] - profile[0][last_index - 1]  ## check grid spacing close to terminus
-        # dHdx = (h_terminus - H_adj) / dx_term
-        # dHydx = (Hy_terminus - Hy_adj) / dx_term
-        dUdx = (U_terminus - U_adj) / dx_term  ## velocity gradient
-        ## Group the terms
-        dLdt_numerator = terminus_mb - (h_terminus * dUdx) - (U_terminus * dHdx)
-        dLdt_denominator = dHydx - dHdx  ## TODO: compute dHydx
-        dLdt_viscoplastic = dLdt_numerator / dLdt_denominator
-        # fa_viscoplastic = dLdt_viscoplastic -U_terminus  ## frontal ablation rate
-        
-        # try:
-        U_calving = U_terminus - dLdt_viscoplastic  ## frontal ablation rate
-        fa_viscoplastic=U_calving
-        # if U_calving<0:
-        #     print("The glacier is advancing, and the advancing rate is larger than ice flow speed at the terminus, please check ")
-        #     if U_calving>0 or U_calving==0:
-        #         fa_viscoplastic=U_calving
-        #     else:
-        #         fa_viscoplastic=U_calving
-        #         # fa_viscoplastic=np.nan
-        #         raise NegativeValueError("Something is wrong, right now the calving in negative, which should be positive or zero")
-        # except NegativeValueError as e:
-        #     print ("The glacier is advancing, and the advancing rate is larger than ice flow speed at the terminus, please check ")
+        dx_term = profile[0][last_index] - profile[0][last_index - 1]  ## check grid spacing close to terminus
+        dHdx = (h_terminus - H_adj) / dx_term
+        dHydx = (Hy_terminus - Hy_adj) / dx_term
+        if np.isnan(U_terminus) or np.isnan(U_adj):
+            dUdx = np.nan  ## velocity gradient
+            ## Group the terms
+            dLdt_numerator = np.nan
+            dLdt_denominator = np.nan  ## TODO: compute dHydx
+            dLdt_viscoplastic = np.nan
+            # fa_viscoplastic = dLdt_viscoplastic -U_terminus  ## frontal ablation rate
+            fa_viscoplastic = np.nan  ## frontal ablation rate
+        else:
+            # Gradients
+            # dx_term = profile[0][last_index] - profile[0][last_index - 1]  ## check grid spacing close to terminus
+            # dHdx = (h_terminus - H_adj) / dx_term
+            # dHydx = (Hy_terminus - Hy_adj) / dx_term
+            dUdx = (U_terminus - U_adj) / dx_term  ## velocity gradient
+            ## Group the terms
+            dLdt_numerator = terminus_mb - (h_terminus * dUdx) - (U_terminus * dHdx)
+            dLdt_denominator = dHydx - dHdx  ## TODO: compute dHydx
+            dLdt_viscoplastic = dLdt_numerator / dLdt_denominator
+            # fa_viscoplastic = dLdt_viscoplastic -U_terminus  ## frontal ablation rate
             
+            # try:
+            U_calving = U_terminus - dLdt_viscoplastic  ## frontal ablation rate
+            fa_viscoplastic=U_calving
+            # if U_calving<0:
+            #     print("The glacier is advancing, and the advancing rate is larger than ice flow speed at the terminus, please check ")
+            #     if U_calving>0 or U_calving==0:
+            #         fa_viscoplastic=U_calving
+            #     else:
+            #         fa_viscoplastic=U_calving
+            #         # fa_viscoplastic=np.nan
+            #         raise NegativeValueError("Something is wrong, right now the calving in negative, which should be positive or zero")
+            # except NegativeValueError as e:
+            #     print ("The glacier is advancing, and the advancing rate is larger than ice flow speed at the terminus, please check ")
+                
 
 
-    SQFA = {'se_terminus': se_terminus,
-            'bed_terminus': bed_terminus,
-            'Thickness_termi': h_terminus,
-            'Width_termi':  width_terminus,
-            'Hy_thickness': Hy_terminus,
-            'Velocity_termi': U_terminus,
-            'Terminus_mb': terminus_mb,
-            'dLdt': dLdt_viscoplastic,
-            'Sermeq_fa': fa_viscoplastic}
-    if verbose:
-        print('For inspection on debugging - all should be DIMENSIONAL (m/a):')
-        #         print('profile_length={}'.format(profile_length))
-        print('last_index={}'.format(last_index))
-        print('se_terminus={}'.format(se_terminus))
-        print('bed_terminus={}'.format(bed_terminus))
-        print('se_adj={}'.format(se_adj))
-        print('bed_adj={}'.format(bed_adj))
-        print('Thicknesses: Hterm {}, Hadj {}'.format(h_terminus, H_adj))
-        print('Hy_terminus={}'.format(Hy_terminus))
-        print('Hy_adj={}'.format(Hy_adj))
-        print('U_terminus={}'.format(U_terminus))
-        print('U_adj={}'.format(U_adj))
-        print('dUdx={}'.format(dUdx))
-        print('dx_term={}'.format(dx_term))
-        print('Checking dLdt: terminus_mb = {}. \n H dUdx = {}. \n U dHdx = {}.'.format(terminus_mb, dUdx * h_terminus,
-                                                                                        U_terminus * dHdx))
-        print('Denom: dHydx = {} \n dHdx = {}'.format(dHydx, dHdx))
-        print('Viscoplastic dLdt={}'.format(dLdt_viscoplastic))
-        print('Terminus surface mass balance ma= {}'.format(terminus_mb))
-        print('Sermeq frontal ablation ma={}'.format(fa_viscoplastic))
-    else:
-        pass
-    return SQFA
+        SQFA = {'se_terminus': se_terminus,
+                'bed_terminus': bed_terminus,
+                'Thickness_termi': h_terminus,
+                'Width_termi':  width_terminus,
+                'Hy_thickness': Hy_terminus,
+                'Velocity_termi': U_terminus,
+                'Terminus_mb': terminus_mb,
+                'dLdt': dLdt_viscoplastic,
+                'Sermeq_fa': fa_viscoplastic}
+        if verbose:
+            print('For inspection on debugging - all should be DIMENSIONAL (m/a):')
+            #         print('profile_length={}'.format(profile_length))
+            print('last_index={}'.format(last_index))
+            print('se_terminus={}'.format(se_terminus))
+            print('bed_terminus={}'.format(bed_terminus))
+            print('se_adj={}'.format(se_adj))
+            print('bed_adj={}'.format(bed_adj))
+            print('Thicknesses: Hterm {}, Hadj {}'.format(h_terminus, H_adj))
+            print('Hy_terminus={}'.format(Hy_terminus))
+            print('Hy_adj={}'.format(Hy_adj))
+            print('U_terminus={}'.format(U_terminus))
+            print('U_adj={}'.format(U_adj))
+            print('dUdx={}'.format(dUdx))
+            print('dx_term={}'.format(dx_term))
+            print('Checking dLdt: terminus_mb = {}. \n H dUdx = {}. \n U dHdx = {}.'.format(terminus_mb, dUdx * h_terminus,
+                                                                                            U_terminus * dHdx))
+            print('Denom: dHydx = {} \n dHdx = {}'.format(dHydx, dHdx))
+            print('Viscoplastic dLdt={}'.format(dLdt_viscoplastic))
+            print('Terminus surface mass balance ma= {}'.format(terminus_mb))
+            print('Sermeq frontal ablation ma={}'.format(fa_viscoplastic))
+        else:
+            pass
+        return SQFA
 
 
 
@@ -1479,7 +1531,9 @@ def distribute_thickness_interp(gdir, add_slope=True, smooth_radius=None,
 
 
 def calving_flux_from_depth(gdir, mb_model=None,mb_years=None,k=None, water_level=None, water_depth=None,
-                            thick=None, fixed_water_depth=False,calving_law_inv=None):
+                            thick=None, fixed_water_depth=False,calving_law_inv=None,modelprms = None,
+                            glacier_rgi_table = None, hindcast = None, debug = None, debug_refreeze = None,
+                            option_areaconstant = None, inversion_filter = False):
     """Finds a calving flux from the calving front thickness.
 
     Approach based on Huss and Hock, (2015) and Oerlemans and Nick (2005).
@@ -1515,6 +1569,23 @@ def calving_flux_from_depth(gdir, mb_model=None,mb_years=None,k=None, water_leve
             future OGGM versions.
             1. k-calving law
             2. fa_sermq_speed_law
+    
+    # parameters for the mb_model, used in the function fa_sermeq_speed_law_inv
+    ----------
+    modelprms : dict
+        Model parameters dictionary (lrgcm, lrglac, precfactor, precgrad, ddfsnow, ddfice, tempsnow, tempchange)
+    glacier_rgi_table : pd.Series
+        Table of glacier's RGI information
+    option_areaconstant : Boolean
+        option to keep glacier area constant (default False allows glacier area to change annually)
+    frontalablation_k : float
+        frontal ablation parameter
+    debug : Boolean
+        option to turn on print statements for development or debugging of code
+    debug_refreeze : Boolean
+        option to turn on print statements for development/debugging of refreezing code
+    hindcast : Boolean
+        switch to run the model in reverse or not (may be irrelevant after converting to OGGM's setup)    
 
     Returns
     -------
@@ -1567,7 +1638,9 @@ def calving_flux_from_depth(gdir, mb_model=None,mb_years=None,k=None, water_leve
             print('The terminus bed is already under the water level')
         #TODO the k should be the updated k, or the defaulted k
         s_fa = fa_sermeq_speed_law_inv(gdir=gdir, mb_model=mb_model,mb_years=mb_years, last_above_wl=last_above_wl,v_scaling = 1, verbose = True,tau0 = k,
-                                    mu = 0.01,trim_profile = 0)
+                                    mu = 0.01,trim_profile = 0,modelprms = modelprms,glacier_rgi_table = glacier_rgi_table,hindcast = hindcast,
+                                    debug = debug, debug_refreeze = debug_refreeze,option_areaconstant = option_areaconstant,
+                                    inversion_filter = inversion_filter)
         flux = s_fa ['Sermeq_fa']*s_fa['Thickness_termi']*s_fa['Width_termi']/1e9
         flux_k_calving = k * thick * water_depth * width / 1e9 
     else:
@@ -1594,7 +1667,9 @@ def calving_flux_from_depth(gdir, mb_model=None,mb_years=None,k=None, water_leve
 @entity_task(log, writes=['diagnostics'])
 def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
                                        water_level=None,
-                                       glen_a=None, fs=None,calving_law_inv=fa_sermeq_speed_law_inv):
+                                       glen_a=None, fs=None,calving_law_inv=fa_sermeq_speed_law_inv,
+                                       modelprms =None,glacier_rgi_table = None,hindcast=None,debug =None,
+                                       debug_refreeze = None,option_areaconstant=None, inversion_filter = None):
     """Optimized search for a calving flux compatible with the bed inversion.
 
     See Recinos et al. (2019) for details. This task is an update to
@@ -1625,6 +1700,22 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
             future OGGM versions.
             1. fa_sermq_speed_law_inv (default)
             2. None (k-calving law)
+    # Parameter for the mb_model (Here is for PyGEMMassBalance), used in the calving_flux_from_depth
+    ----------
+    modelprms : dict
+        Model parameters dictionary (lrgcm, lrglac, precfactor, precgrad, ddfsnow, ddfice, tempsnow, tempchange)
+    glacier_rgi_table : pd.Series
+        Table of glacier's RGI information
+    option_areaconstant : Boolean
+        option to keep glacier area constant (default False allows glacier area to change annually)
+    frontalablation_k : float
+        frontal ablation parameter
+    debug : Boolean
+        option to turn on print statements for development or debugging of code
+    debug_refreeze : Boolean
+        option to turn on print statements for development/debugging of refreezing code
+    hindcast : Boolean
+        switch to run the model in reverse or not (may be irrelevant after converting to OGGM's setup)    
     """
     from oggm.core import massbalance
 
@@ -1704,7 +1795,11 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
         #                              water_depth=h)
         fl = calving_flux_from_depth(gdir, mb_model=mb_model,mb_years=mb_years,k= calving_k,
                                      water_level=water_level,water_depth= h,
-                                     calving_law_inv =  calving_law_inv)
+                                     calving_law_inv =  calving_law_inv,modelprms = modelprms,
+                                     glacier_rgi_table = glacier_rgi_table,hindcast = hindcast,
+                                     debug = debug, debug_refreeze = debug_refreeze,
+                                     option_areaconstant = option_areaconstant,
+                                     inversion_filter = inversion_filter)
 
         flux = fl['flux'] * 1e9 / cfg.SEC_IN_YEAR
         sia_thick = sia_thickness(slope, width, flux, glen_a=glen_a, fs=fs)
@@ -1912,6 +2007,7 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
     log.workflow('({}) calving (law) flux of {} ({})'.format(gdir.rgi_id,
                  f_calving, out['flux']))
     # Store results
+    # Check the  type of the variables, should be list, not array
     odf = dict()
     odf['calving_flux'] = f_calving
     odf['calving_rate_myr'] = f_calving * 1e9 / (out['thick'] * out['width'])
