@@ -707,7 +707,7 @@ class ConstantMassBalance(MassBalanceModel):
         **kwargs:
             keyword arguments to pass to the mb_model_class
         """
-
+        
         super().__init__()
         self.mbmod = mb_model_class(gdir,
                                     **kwargs)
@@ -715,7 +715,7 @@ class ConstantMassBalance(MassBalanceModel):
         if y0 is None:
             raise InvalidParamsError('Please set `y0` explicitly')
 
-        # This is a quick'n dirty optimisation
+        # This is a quick'n dirty optimisation     
         try:
             fls = gdir.read_pickle('model_flowlines')
             h = []
