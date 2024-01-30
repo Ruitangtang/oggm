@@ -52,7 +52,7 @@ from oggm.exceptions import InvalidParamsError, InvalidWorkflowError
 from oggm.cfg import G
 
 # PyGEM
-import pygem_input as pygem_prms
+#import pygem_input as pygem_prms
 
 # Module logger
 log = logging.getLogger(__name__)
