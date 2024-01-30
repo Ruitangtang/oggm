@@ -648,147 +648,151 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
     # Get the mean mass balance for the study period along the flowline
     # Set model parameters
         # ----- Invert ice thickness and run simulation ------
-    if (fls is not None) and (glacier_area.sum() > 0):           
-        mean_mb_model = ConstantMassBalance(gdir,mb_model_class = mb_model,modelprms = modelprms,
-                                            glacier_rgi_table = glacier_rgi_table,
-                                            hindcast = hindcast,
-                                            debug = debug,
-                                            debug_refreez = debug_refreeze,
-                                            fls = fls, option_areaconstant = option_areaconstant,
-                                            inversion_filter = inversion_filter)
+    if (fls is not None) and (glacier_area.sum() > 0): 
+        try:    
+            mean_mb_model = ConstantMassBalance(gdir,mb_model_class = mb_model.__class__,modelprms = modelprms,
+                                                glacier_rgi_table = glacier_rgi_table,
+                                                hindcast = hindcast,
+                                                debug = debug,
+                                                debug_refreeze = debug_refreeze,
+                                                fls = fls, option_areaconstant = option_areaconstant,
+                                                inversion_filter = inversion_filter, y0=2010, halfsize=10)
 
-        # check that this gives you 2000, 2001, ..., 2020
-        print("mean mb model for the period is:",mean_mb_model.years)
 
-        mean_mb_annual=mean_mb_model.get_annual_mb(heights=surface_m)
-        #Terminus_mb = mb_annual*cfg.SEC_IN_YEAR
-        Terminus_mb = mean_mb_annual/1000 # convert the unit from mm a-1 to m a-1
+            # check that this gives you 2000, 2001, ..., 2020
+            print("mean mb model for the period is:",mean_mb_model.years)
 
-        print("Terminus_mb is (m a-1):",Terminus_mb)
-        # slice up to index+1 to include the last nonzero value
-        # profile: NDarray
-        #     The current profile (x, surface, bed,width) as calculated by the base model
-        #     Unlike core SERMeQ, these should be DIMENSIONAL [m].
-        profile=(x_m[:last_above_wl+1],
-                 surface_m[:last_above_wl+1],
-                 bed_m[:last_above_wl+1],width_m[:last_above_wl+1])
-        # model_velocity: array
-        #     Velocity along the flowline [m/a] as calculated by the base model
-        #     Should have values for the points nearest the terminus...otherwise
-        #     doesn't matter if this is the same shape as the profile array.
-        #     TODO: Check with the remote sensing products, or at least to validate the model products
-        model_velocity=velocity_m[:last_above_wl+1]
-        # remove lowest cells if needed
-        last_index = -1 * (trim_profile + 1)
-        ## TODO: Check the flowline model, the decrease the distance between two adjacent points along the flowline, and then calculate the averaged gradient for dhdx,dhydx,dudx
-        ##
-        if isinstance(Terminus_mb, (int, float)):
-            terminus_mb = Terminus_mb
-        elif isinstance(Terminus_mb, (list, np.ndarray)):
-            terminus_mb = Terminus_mb[last_index]
-        else:
-            print("please input the correct mass balance datatype")
-        #
-        if isinstance(model_velocity, (int, float)):
-            model_velocity = v_scaling * model_velocity
-        elif isinstance(model_velocity, list):
-            model_velocity = v_scaling * np.array(model_velocity)
-        elif isinstance(model_velocity, np.ndarray):
-            model_velocity = v_scaling * model_velocity
-        else:
-            print("please input the correct velocity datatype")
-        ## Ice thickness and yield thickness nearest the terminus
-        se_terminus = profile[1][last_index]
-        bed_terminus = profile[2][last_index]
-        h_terminus = se_terminus - bed_terminus
-        width_terminus = profile[3][last_index]
-        tau_y_terminus = tau_y(tau0=tau0, bed_elev=bed_terminus, thick=h_terminus, variable_yield=variable_yield)
-        Hy_terminus = balance_thickness(yield_strength=tau_y_terminus, bed_elev=bed_terminus)
-        if isinstance(model_velocity, (int, float)):
-            U_terminus = model_velocity
-            U_adj = model_velocity
-        else:
-            U_terminus = model_velocity[last_index]  ## velocity, assuming last point is terminus
-            U_adj = model_velocity[last_index - 1]
-        ## Ice thickness and yield thickness at adjacent point
-        se_adj = profile[1][last_index - 1]
-        bed_adj = profile[2][last_index - 1]
-        H_adj = se_adj - bed_adj
-        tau_y_adj = tau_y(tau0=tau0, bed_elev=bed_adj, thick=H_adj, variable_yield=variable_yield)
-        Hy_adj = balance_thickness(yield_strength=tau_y_adj, bed_elev=bed_adj)
-        # Gradients
-        dx_term = profile[0][last_index] - profile[0][last_index - 1]  ## check grid spacing close to terminus
-        dHdx = (h_terminus - H_adj) / dx_term
-        dHydx = (Hy_terminus - Hy_adj) / dx_term
-        if np.isnan(U_terminus) or np.isnan(U_adj):
-            dUdx = np.nan  ## velocity gradient
-            ## Group the terms
-            dLdt_numerator = np.nan
-            dLdt_denominator = np.nan  ## TODO: compute dHydx
-            dLdt_viscoplastic = np.nan
-            # fa_viscoplastic = dLdt_viscoplastic -U_terminus  ## frontal ablation rate
-            fa_viscoplastic = np.nan  ## frontal ablation rate
-        else:
+            mean_mb_annual=mean_mb_model.get_annual_mb(heights=surface_m)
+            #Terminus_mb = mb_annual*cfg.SEC_IN_YEAR
+            Terminus_mb = mean_mb_annual/1000 # convert the unit from mm a-1 to m a-1
+
+            print("Terminus_mb is (m a-1):",Terminus_mb)
+            # slice up to index+1 to include the last nonzero value
+            # profile: NDarray
+            #     The current profile (x, surface, bed,width) as calculated by the base model
+            #     Unlike core SERMeQ, these should be DIMENSIONAL [m].
+            profile=(x_m[:last_above_wl+1],
+                        surface_m[:last_above_wl+1],
+                        bed_m[:last_above_wl+1],width_m[:last_above_wl+1])
+            # model_velocity: array
+            #     Velocity along the flowline [m/a] as calculated by the base model
+            #     Should have values for the points nearest the terminus...otherwise
+            #     doesn't matter if this is the same shape as the profile array.
+            #     TODO: Check with the remote sensing products, or at least to validate the model products
+            model_velocity=velocity_m[:last_above_wl+1]
+            # remove lowest cells if needed
+            last_index = -1 * (trim_profile + 1)
+            ## TODO: Check the flowline model, the decrease the distance between two adjacent points along the flowline, and then calculate the averaged gradient for dhdx,dhydx,dudx
+            ##
+            if isinstance(Terminus_mb, (int, float)):
+                terminus_mb = Terminus_mb
+            elif isinstance(Terminus_mb, (list, np.ndarray)):
+                terminus_mb = Terminus_mb[last_index]
+            else:
+                print("please input the correct mass balance datatype")
+            #
+            if isinstance(model_velocity, (int, float)):
+                model_velocity = v_scaling * model_velocity
+            elif isinstance(model_velocity, list):
+                model_velocity = v_scaling * np.array(model_velocity)
+            elif isinstance(model_velocity, np.ndarray):
+                model_velocity = v_scaling * model_velocity
+            else:
+                print("please input the correct velocity datatype")
+            ## Ice thickness and yield thickness nearest the terminus
+            se_terminus = profile[1][last_index]
+            bed_terminus = profile[2][last_index]
+            h_terminus = se_terminus - bed_terminus
+            width_terminus = profile[3][last_index]
+            tau_y_terminus = tau_y(tau0=tau0, bed_elev=bed_terminus, thick=h_terminus, variable_yield=variable_yield)
+            Hy_terminus = balance_thickness(yield_strength=tau_y_terminus, bed_elev=bed_terminus)
+            if isinstance(model_velocity, (int, float)):
+                U_terminus = model_velocity
+                U_adj = model_velocity
+            else:
+                U_terminus = model_velocity[last_index]  ## velocity, assuming last point is terminus
+                U_adj = model_velocity[last_index - 1]
+            ## Ice thickness and yield thickness at adjacent point
+            se_adj = profile[1][last_index - 1]
+            bed_adj = profile[2][last_index - 1]
+            H_adj = se_adj - bed_adj
+            tau_y_adj = tau_y(tau0=tau0, bed_elev=bed_adj, thick=H_adj, variable_yield=variable_yield)
+            Hy_adj = balance_thickness(yield_strength=tau_y_adj, bed_elev=bed_adj)
             # Gradients
-            # dx_term = profile[0][last_index] - profile[0][last_index - 1]  ## check grid spacing close to terminus
-            # dHdx = (h_terminus - H_adj) / dx_term
-            # dHydx = (Hy_terminus - Hy_adj) / dx_term
-            dUdx = (U_terminus - U_adj) / dx_term  ## velocity gradient
-            ## Group the terms
-            dLdt_numerator = terminus_mb - (h_terminus * dUdx) - (U_terminus * dHdx)
-            dLdt_denominator = dHydx - dHdx  ## TODO: compute dHydx
-            dLdt_viscoplastic = dLdt_numerator / dLdt_denominator
-            # fa_viscoplastic = dLdt_viscoplastic -U_terminus  ## frontal ablation rate
-            
-            # try:
-            U_calving = U_terminus - dLdt_viscoplastic  ## frontal ablation rate
-            fa_viscoplastic=U_calving
-            # if U_calving<0:
-            #     print("The glacier is advancing, and the advancing rate is larger than ice flow speed at the terminus, please check ")
-            #     if U_calving>0 or U_calving==0:
-            #         fa_viscoplastic=U_calving
-            #     else:
-            #         fa_viscoplastic=U_calving
-            #         # fa_viscoplastic=np.nan
-            #         raise NegativeValueError("Something is wrong, right now the calving in negative, which should be positive or zero")
-            # except NegativeValueError as e:
-            #     print ("The glacier is advancing, and the advancing rate is larger than ice flow speed at the terminus, please check ")
+            dx_term = profile[0][last_index] - profile[0][last_index - 1]  ## check grid spacing close to terminus
+            dHdx = (h_terminus - H_adj) / dx_term
+            dHydx = (Hy_terminus - Hy_adj) / dx_term
+            if np.isnan(U_terminus) or np.isnan(U_adj):
+                dUdx = np.nan  ## velocity gradient
+                ## Group the terms
+                dLdt_numerator = np.nan
+                dLdt_denominator = np.nan  ## TODO: compute dHydx
+                dLdt_viscoplastic = np.nan
+                # fa_viscoplastic = dLdt_viscoplastic -U_terminus  ## frontal ablation rate
+                fa_viscoplastic = np.nan  ## frontal ablation rate
+            else:
+                # Gradients
+                # dx_term = profile[0][last_index] - profile[0][last_index - 1]  ## check grid spacing close to terminus
+                # dHdx = (h_terminus - H_adj) / dx_term
+                # dHydx = (Hy_terminus - Hy_adj) / dx_term
+                dUdx = (U_terminus - U_adj) / dx_term  ## velocity gradient
+                ## Group the terms
+                dLdt_numerator = terminus_mb - (h_terminus * dUdx) - (U_terminus * dHdx)
+                dLdt_denominator = dHydx - dHdx  ## TODO: compute dHydx
+                dLdt_viscoplastic = dLdt_numerator / dLdt_denominator
+                # fa_viscoplastic = dLdt_viscoplastic -U_terminus  ## frontal ablation rate
                 
+                # try:
+                U_calving = U_terminus - dLdt_viscoplastic  ## frontal ablation rate
+                fa_viscoplastic=U_calving
+                # if U_calving<0:
+                #     print("The glacier is advancing, and the advancing rate is larger than ice flow speed at the terminus, please check ")
+                #     if U_calving>0 or U_calving==0:
+                #         fa_viscoplastic=U_calving
+                #     else:
+                #         fa_viscoplastic=U_calving
+                #         # fa_viscoplastic=np.nan
+                #         raise NegativeValueError("Something is wrong, right now the calving in negative, which should be positive or zero")
+                # except NegativeValueError as e:
+                #     print ("The glacier is advancing, and the advancing rate is larger than ice flow speed at the terminus, please check ")
+                    
 
 
-        SQFA = {'se_terminus': se_terminus,
-                'bed_terminus': bed_terminus,
-                'Thickness_termi': h_terminus,
-                'Width_termi':  width_terminus,
-                'Hy_thickness': Hy_terminus,
-                'Velocity_termi': U_terminus,
-                'Terminus_mb': terminus_mb,
-                'dLdt': dLdt_viscoplastic,
-                'Sermeq_fa': fa_viscoplastic}
-        if verbose:
-            print('For inspection on debugging - all should be DIMENSIONAL (m/a):')
-            #         print('profile_length={}'.format(profile_length))
-            print('last_index={}'.format(last_index))
-            print('se_terminus={}'.format(se_terminus))
-            print('bed_terminus={}'.format(bed_terminus))
-            print('se_adj={}'.format(se_adj))
-            print('bed_adj={}'.format(bed_adj))
-            print('Thicknesses: Hterm {}, Hadj {}'.format(h_terminus, H_adj))
-            print('Hy_terminus={}'.format(Hy_terminus))
-            print('Hy_adj={}'.format(Hy_adj))
-            print('U_terminus={}'.format(U_terminus))
-            print('U_adj={}'.format(U_adj))
-            print('dUdx={}'.format(dUdx))
-            print('dx_term={}'.format(dx_term))
-            print('Checking dLdt: terminus_mb = {}. \n H dUdx = {}. \n U dHdx = {}.'.format(terminus_mb, dUdx * h_terminus,
-                                                                                            U_terminus * dHdx))
-            print('Denom: dHydx = {} \n dHdx = {}'.format(dHydx, dHdx))
-            print('Viscoplastic dLdt={}'.format(dLdt_viscoplastic))
-            print('Terminus surface mass balance ma= {}'.format(terminus_mb))
-            print('Sermeq frontal ablation ma={}'.format(fa_viscoplastic))
-        else:
-            pass
-        return SQFA
+            SQFA = {'se_terminus': se_terminus,
+                    'bed_terminus': bed_terminus,
+                    'Thickness_termi': h_terminus,
+                    'Width_termi':  width_terminus,
+                    'Hy_thickness': Hy_terminus,
+                    'Velocity_termi': U_terminus,
+                    'Terminus_mb': terminus_mb,
+                    'dLdt': dLdt_viscoplastic,
+                    'Sermeq_fa': fa_viscoplastic}
+            if verbose:
+                print('For inspection on debugging - all should be DIMENSIONAL (m/a):')
+                #         print('profile_length={}'.format(profile_length))
+                print('last_index={}'.format(last_index))
+                print('se_terminus={}'.format(se_terminus))
+                print('bed_terminus={}'.format(bed_terminus))
+                print('se_adj={}'.format(se_adj))
+                print('bed_adj={}'.format(bed_adj))
+                print('Thicknesses: Hterm {}, Hadj {}'.format(h_terminus, H_adj))
+                print('Hy_terminus={}'.format(Hy_terminus))
+                print('Hy_adj={}'.format(Hy_adj))
+                print('U_terminus={}'.format(U_terminus))
+                print('U_adj={}'.format(U_adj))
+                print('dUdx={}'.format(dUdx))
+                print('dx_term={}'.format(dx_term))
+                print('Checking dLdt: terminus_mb = {}. \n H dUdx = {}. \n U dHdx = {}.'.format(terminus_mb, dUdx * h_terminus,
+                                                                                                U_terminus * dHdx))
+                print('Denom: dHydx = {} \n dHdx = {}'.format(dHydx, dHdx))
+                print('Viscoplastic dLdt={}'.format(dLdt_viscoplastic))
+                print('Terminus surface mass balance ma= {}'.format(terminus_mb))
+                print('Sermeq frontal ablation ma={}'.format(fa_viscoplastic))
+            else:
+                pass
+            return SQFA
+        except:
+            print(traceback.format_exc())
 
 
 
