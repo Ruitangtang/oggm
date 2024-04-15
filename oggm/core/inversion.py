@@ -663,7 +663,7 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
             print("mean mb model for the period is:",mean_mb_model.years)
             
             #TODO add the fls and fl_id in the input argument of function mean_mb_model.get_annual_mb(heights=surface_m)
-            mean_mb_annual=mean_mb_model.get_annual_mb(heights=surface_m)
+            mean_mb_annual=mean_mb_model.get_annual_mb(fls = fls, fl_id = -1, heights=surface_m)
             #Terminus_mb = mb_annual*cfg.SEC_IN_YEAR
             Terminus_mb = mean_mb_annual/1000 # convert the unit from mm a-1 to m a-1
 
