@@ -2046,11 +2046,11 @@ def apparent_mb_from_any_mb(gdir, mb_model=None,
                                           fls=fls, fl_id=fl_id)
             print("year is:",yr)
         mbz = mbz / len(mb_years)
-        print("mbz is",mbz)
+        print("mbz is (m of ice per second)",mbz)
         fl.set_apparent_mb(mbz * cfg.SEC_IN_YEAR * rho + residual,
                            is_calving=is_calving)
         print('*****************************************************************')
-        print("the apparent mb is set, and the apparent_mb  is (mm a-1) :",fl.apparent_mb)
+        print("the apparent mb is set, and the apparent_mb  is (mm w.e. a-1) :",fl.apparent_mb)
         print("the flux is  :",fl.flux)
         print("the flux out is :",fl.flux_out)
         print("correct the flux is:",fl.flux_needs_correction)
@@ -2065,7 +2065,7 @@ def apparent_mb_from_any_mb(gdir, mb_model=None,
     _check_terminus_mass_flux(gdir, fls)
     gdir.add_to_diagnostics('apparent_mb_from_any_mb_residual', residual)
     gdir.write_pickle(fls, 'inversion_flowlines')
-    print("apparent_mb_from_any_mb is successful")
+    #print("apparent_mb_from_any_mb is successful")
 
 
 @entity_task(log)
