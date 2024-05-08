@@ -192,6 +192,7 @@ def _compute_thick(a0s, a3, flux_a0, shape_factor, _inv_function):
 
     a0s = a0s / (shape_factor ** 3)
     a3s = a3 / (shape_factor ** 3) # Not sure whether this is correct...
+    print("shape_factor in _compute_thick is :",shape_factor)
     if np.any(~np.isfinite(a0s)):
         raise RuntimeError('non-finite coefficients in the polynomial.')
 
@@ -203,7 +204,7 @@ def _compute_thick(a0s, a3, flux_a0, shape_factor, _inv_function):
             out_thick[i] = _inv_function(a3, a0) if Q > 0 else 0
     except TypeError:
         # Scalar
-        print("*********************TypeError in _compute_thick*********************")
+        # print("*********************TypeError in _compute_thick*********************")
         out_thick = _inv_function(a3, a0s) if flux_a0 > 0 else 0
 
     if np.any(~np.isfinite(out_thick)):
@@ -415,7 +416,7 @@ def _vol_below_water(surface_h, bed_h, bed_shape, thick, widths,
 
 
 def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_wl=None, v_scaling=1, verbose=False,
-                     tau0=1.5, variable_yield=None, mu=0.01,trim_profile=1,modelprms = None,glacier_rgi_table = None,
+                     tau0=1.5, variable_yield=None, mu=0.01,trim_profile=0,modelprms = None,glacier_rgi_table = None,
                      hindcast = None, debug = None, debug_refreeze = None, option_areaconstant = None,
                      inversion_filter = None):
     """
@@ -446,8 +447,7 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
     v_scaling: float
         velocity scaling factor, >0, default is 1
     Terminus_mb : array
-        Mass balance along the flowline or nearest the terminus [m/a]. Default None...
-        TODO: set default behavior, check the unit meter of ice per year or m w.e. per year?
+        Mass balance along the flowline or nearest the terminus [m/a]. Default None, the unit meter of ice per year 
     verbose: Boolean, optional
         Whether to print component parts for inspection.  Default False.
 
@@ -584,7 +584,7 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
         Returns
         -------
         Hy: float
-            The ice thickness for stress balance at the terminus. [units]
+            The ice thickness for stress balance at the terminus. [units m]
         """
         if bed_elev < 0:
             D = -1 * bed_elev
@@ -648,26 +648,39 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
     # Get the mean mass balance for the study period along the flowline
     # Set model parameters
         # ----- Invert ice thickness and run simulation ------
+    
     if (fls is not None) and (glacier_area.sum() > 0): 
         try:    
-            mean_mb_model = ConstantMassBalance(gdir,mb_model_class = mb_model.__class__,modelprms = modelprms,
-                                                glacier_rgi_table = glacier_rgi_table,
-                                                hindcast = hindcast,
-                                                debug = debug,
-                                                debug_refreeze = debug_refreeze,
-                                                fls = fls, option_areaconstant = option_areaconstant,
-                                                inversion_filter = inversion_filter, y0=2010, halfsize=10)
+            
+            #mean_mb_model = ConstantMassBalance(gdir,mb_model_class = mb_model.__class__,modelprms = modelprms,
+            #                                    glacier_rgi_table = glacier_rgi_table,
+            #                                    hindcast = hindcast,
+            #                                    debug = debug,
+            #                                    debug_refreeze = debug_refreeze,
+            #                                    fls = fls, option_areaconstant = option_areaconstant,
+            #                                    inversion_filter = inversion_filter, y0=2010, halfsize=10)
 
 
             # check that this gives you 2000, 2001, ..., 2020
-            print("mean mb model for the period is:",mean_mb_model.years)
+            #print("mean mb model for the period is:",mean_mb_model.years)
             
             #TODO add the fls and fl_id in the input argument of function mean_mb_model.get_annual_mb(heights=surface_m)
-            mean_mb_annual=mean_mb_model.get_annual_mb(fls = fls, fl_id = -1, heights=surface_m)
-            #Terminus_mb = mb_annual*cfg.SEC_IN_YEAR
-            Terminus_mb = mean_mb_annual/1000 # convert the unit from mm a-1 to m a-1
+            #fls = gdir.read_pickle('inversion_flowlines')
+            print("######################### before call the get_annual_mb function #########################")
+            print("fls is : ",fls)
+            fl_id = 0
+            print("fl_id is :",fl_id)
+            print("######################### before call the get_annual_mb function #########################")
+            mean_mb_annual=[]
+            for y in range(len(mb_years)-1):
+                mean_mb_annual=mb_model.get_annual_mb(fls = fls, fl_id = fl_id, heights=surface_m, year=y)
+                mean_mb_annual+=mean_mb_annual/float(len(mb_years))
+            print("mean_mb_annual is (m ice per second):",mean_mb_annual)
 
-            print("Terminus_mb is (m a-1):",Terminus_mb)
+            Terminus_mb = mean_mb_annual*cfg.SEC_IN_YEAR
+            # Terminus_mb = mean_mb_annual/1000 # convert the unit from mm a-1 to m a-1
+
+            print("Terminus_mb is (m a-1  / m ice per year):",Terminus_mb)
             # slice up to index+1 to include the last nonzero value
             # profile: NDarray
             #     The current profile (x, surface, bed,width) as calculated by the base model
@@ -682,6 +695,7 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
             #     TODO: Check with the remote sensing products, or at least to validate the model products
             model_velocity=velocity_m[:last_above_wl+1]
             # remove lowest cells if needed
+            print("trim_profile is :",trim_profile)
             last_index = -1 * (trim_profile + 1)
             ## TODO: Check the flowline model, the decrease the distance between two adjacent points along the flowline, and then calculate the averaged gradient for dhdx,dhydx,dudx
             ##
@@ -793,6 +807,7 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
                 pass
             return SQFA
         except:
+            print("Something wrong in the try part in fa_sermeq_speed_law_inv,in inversion.py")
             print(traceback.format_exc())
 
 
@@ -852,7 +867,7 @@ def mass_conservation_inversion(gdir, glen_a=None, fs=None, write=True,
     # if water_level is None:
     #     water_level = 0
     # print("water_level in the mass_conservation_inversion is :",water_level)
-    # Inversion with shape factors?
+    # Inversion with shape factors?s
     sf_func = None
     use_sf = cfg.PARAMS.get('use_shape_factor_for_inversion', None)
     if use_sf == 'Adhikari' or use_sf == 'Nye':
@@ -1573,7 +1588,7 @@ def calving_flux_from_depth(gdir, mb_model=None,mb_years=None,k=None, water_leve
             to test other calving laws, and the system might be improved in
             future OGGM versions.
             1. k-calving law
-            2. fa_sermq_speed_law
+            2. fa_sermq_speed_law_inv
     
     # parameters for the mb_model, used in the function fa_sermeq_speed_law_inv
     ----------
@@ -1643,7 +1658,7 @@ def calving_flux_from_depth(gdir, mb_model=None,mb_years=None,k=None, water_leve
             print('The terminus bed is already under the water level')
         #TODO the k should be the updated k, or the defaulted k
         s_fa = fa_sermeq_speed_law_inv(gdir=gdir, mb_model=mb_model,mb_years=mb_years, last_above_wl=last_above_wl,v_scaling = 1, verbose = True,tau0 = k,
-                                    mu = 0.01,trim_profile = 0,modelprms = modelprms,glacier_rgi_table = glacier_rgi_table,hindcast = hindcast,
+                                    mu = 0.01,trim_profile = 1,modelprms = modelprms,glacier_rgi_table = glacier_rgi_table,hindcast = hindcast,
                                     debug = debug, debug_refreeze = debug_refreeze,option_areaconstant = option_areaconstant,
                                     inversion_filter = inversion_filter)
         flux = s_fa ['Sermeq_fa']*s_fa['Thickness_termi']*s_fa['Width_termi']/1e9
@@ -2024,7 +2039,15 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
     odf['calving_front_free_board'] = out['free_board']
     odf['calving_front_thick'] = out['thick']
     odf['calving_front_width'] = out['width']
-    for k, v in odf.items():
-        gdir.add_to_diagnostics(k, v)
+    try:
+        for k, v in odf.items():
+            # convert Numpy array to Python list
+            if isinstance(v,np.ndarray):
+                print("Key :",k,"Value :",v)
+                v = v.tolist()
+            gdir.add_to_diagnostics(k, v)
+    except:
+        print(traceback.format_exc())
 
     return odf
+
