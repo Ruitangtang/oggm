@@ -981,27 +981,33 @@ class FlowlineModel(object):
         print("the ts is :",ts)
         # Loop over the steps we want to meet
         for y in ts:
-            t = (y - self.y0) * SEC_IN_YEAR
-            # because of CFL, step() doesn't ensure that the end date is met
-            # lets run the steps until we reach our desired date
-            print("t in the run_until is :",t)
-            print("self.t is :",self.t)
-            while self.t < t:
-                print("do the step in the run_until")
-                self.step(t - self.t)
+            try:
+                t = (y - self.y0) * SEC_IN_YEAR
+                # because of CFL, step() doesn't ensure that the end date is met
+                # lets run the steps until we reach our desired date
+                print("t in the run_until is :",t)
+                print("self.t is :",self.t)
+                while self.t < t:
+                    print("do the step in the run_until")
+                    self.step(t - self.t)
 
-            # Check for domain bounds
-            if self.check_for_boundaries:
-                if self.fls[-1].thick[-1] > 10:
-                    raise RuntimeError('Glacier exceeds domain boundaries, '
-                                       'at year: {}'.format(self.yr))
-
-            # Check for NaNs
-            for fl in self.fls:
-                if np.any(~np.isfinite(fl.thick)):
-                    raise FloatingPointError('NaN in numerical solution, '
-                                             'at year: {}'.format(self.yr))
-        print("================ run_until is successful ================")
+                # Check for domain bounds
+                if self.check_for_boundaries:
+                    if self.fls[-1].thick[-1] > 10:
+                        raise RuntimeError('Glacier exceeds domain boundaries, '
+                                        'at year: {}'.format(self.yr))
+                
+                # Check for NaNs
+                for fl in self.fls:
+                    print("the fl.thick in run_until is",fl.thick)
+                    if np.any(~np.isfinite(fl.thick)):
+                        raise FloatingPointError('NaN in numerical solution, '
+                                                'at year: {}'.format(self.yr))
+                print("================ run_until is successful ================")
+            except:
+                print("something in run_until in year",y,"is wrong")
+                print(traceback.format_exc())
+            
 
     def run_until_and_store(self, y1,
                             diag_path=None,
@@ -1128,7 +1134,8 @@ class FlowlineModel(object):
                                                        start_month=sm)
         # cyrs, cmonths = utils.hydrodate_to_calendardate(yrs, months,
         #                                                 start_month=sm)
-
+        print("hyrs is :",hyrs)
+        print("hmonths is :",hmonths)
         # init output
         if geom_path:
             self.to_geometry_netcdf(geom_path)
@@ -1447,7 +1454,7 @@ class FlowlineModel(object):
         prev_state = None  # for the stopping criterion
         print("start_run")
         for i, (yr, mo) in enumerate(zip(monthly_time, months)):
-            print("monthly_time is:",yr,"months is:",mo)
+            print("monthly_time (yr) is:",yr,"months is:",mo)
             print("self year is:",self.yr)
             if yr > self.yr:
                 # Here we model run - otherwise (for spinup) we
@@ -1780,8 +1787,7 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
     v_scaling: float
         velocity scaling factor, >0, default is 1
     Terminus_mb : array
-        Mass balance along the flowline or nearest the terminus [m/a]. Default None...
-        TODO: set default behavior, check the unit meter of ice per year or m w.e. per year?
+        Mass balance along the flowline or nearest the terminus [m/a]. Default None,the unit meter of ice per year 
     verbose: Boolean, optional
         Whether to print component parts for inspection.  Default False.
 
@@ -1809,7 +1815,7 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
         Terminus Thickness [m]
         Yield terminus thickness [m]
         Velocity at the terminus [m/a]
-        Surface mass balance at the terminus [m/a]
+        Surface mass balance at the terminus [m/a] m ice per year
         Length change at the terminus [m/a] based on viscoplastic assumptions
         TODO: output the length change in case we
          have the length change results from observations in-situ or remote sensing (Thomas Schellenberger has the machine learning products)
@@ -1928,8 +1934,9 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
     #  should call the monthly function
     mb_annual=model.mb_model.get_monthly_mb(heights=surface_m, fl_id=-1, year=model.yr, fls=model.fls)
 
-    print("mb_annual is (m s-1):",mb_annual,"in year",model.yr,"Actually is monthly output")
+    print("mb_annual is (m ice per second):",mb_annual,"in year",model.yr,"Actually is monthly output")
     Terminus_mb = mb_annual*cfg.SEC_IN_YEAR
+    print("Terminus mass balance is (m per year):",Terminus_mb)
     # slice up to index+1 to include the last nonzero value
     # profile: NDarray
     #     The current profile (x, surface, bed,width) as calculated by the base model
@@ -2331,7 +2338,7 @@ class FluxBasedModel(FlowlineModel):
             #water_depth = fl.water_depth
             calving_flux = 0.
             depth = utils.clip_min(0,self.water_level - fl.bed_h)
-            print("step:",dt,"fl_id:",fl_id)
+            print("dt in the step(self,dt) is:",dt,"fl_id:",fl_id)
 
             # If it is a tributary, we use the branch it flows into to compute
             # the slope of the last grid point
@@ -2534,10 +2541,11 @@ class FluxBasedModel(FlowlineModel):
                 k = self.calving_k
                 if self.calving_law == fa_sermeq_speed_law:
                     print("before calving")
+                    print("model.yr is :",self.yr)
                     try:
                         # Transit the unit of tau0 to Pa, based on the equation self.calving_k= calving_k/cfg.SEC_IN_YEAR
                         # tau0 = self.calving_k * cfg.SEC_IN_YEAR
-                        s_fa = self.calving_law(self, last_above_wl,v_scaling = 1, verbose = False,tau0 = k*cfg.SEC_IN_YEAR,
+                        s_fa = self.calving_law(self, last_above_wl,v_scaling = 1, verbose = True,tau0 = k*cfg.SEC_IN_YEAR,
                                             variable_yield=self.variable_yield, mu = 0.01,trim_profile = 0)
                         qq_calving = s_fa ['Sermeq_fa']*s_fa['Thickness_termi']*s_fa['Width_termi']/cfg.SEC_IN_YEAR
                         print("after calving")
