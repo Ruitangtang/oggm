@@ -200,7 +200,7 @@ def _compute_thick(a0s, a3, flux_a0, shape_factor, _inv_function):
     try:
         out_thick = np.zeros(len(a0s))
         for i,(a0,a3,Q) in enumerate(zip(a0s,a3s, flux_a0)):
-            print("the", i, "iteration in the _compute_thick")
+            #print("the", i, "iteration in the _compute_thick")
             out_thick[i] = _inv_function(a3, a0) if Q > 0 else 0
     except TypeError:
         # Scalar
@@ -594,15 +594,16 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
             (RHO_SEA * (D ** 2) / RHO_ICE) + ((2 * yield_strength / (RHO_ICE * G)) ** 2))
         # TODO: Check on exponent on last term.  In Ultee & Bassis 2016, this is squared, but in Ultee & Bassis 2020 supplement, it isn't.
 
+
     # ---------------------------------------------------------------------------
     # calculate frontal ablation based on the ice thickness, speed at the terminus
     fls = gdir.read_pickle('inversion_flowlines')
     glacier_area = fls[-1].widths_m * fls[-1].dx_meter
     flowline=fls[-1]
-    print("dir of flowline in inversion_flowlines is:",dir(flowline))
+    #print("dir of flowline in inversion_flowlines is:",dir(flowline))
     cls = gdir.read_pickle('inversion_output')
     cl = cls[-1]
-    print("dir of the cl in inversion_output:",dir(cl))
+    #print("dir of the cl in inversion_output:",dir(cl))
     surface_m = flowline.surface_h
     print("surface_h is (m a.s.l.):",surface_m)
 #    f_b = utils.clip_min(1e-3,cl['hgt'][-1] - water_level)
@@ -613,6 +614,7 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
     print("bed_m is (m a.s.l.):",bed_m)
     #bed_m = flowline.bed_h
     width_m = flowline.widths_m
+    print('width_m (m):',width_m)
     #velocity_m = model.u_stag[-1]*cfg.SEC_IN_YEAR
 
     section = cl['volume'] / cl['dx']
@@ -666,15 +668,16 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
             
             #TODO add the fls and fl_id in the input argument of function mean_mb_model.get_annual_mb(heights=surface_m)
             #fls = gdir.read_pickle('inversion_flowlines')
-            print("######################### before call the get_annual_mb function #########################")
-            print("fls is : ",fls)
-            fl_id = 0
-            print("fl_id is :",fl_id)
-            print("######################### before call the get_annual_mb function #########################")
-            mean_mb_annual=[]
-            for y in range(len(mb_years)-1):
-                mean_mb_annual=mb_model.get_annual_mb(fls = fls, fl_id = fl_id, heights=surface_m, year=y)
-                mean_mb_annual+=mean_mb_annual/float(len(mb_years))
+            # print("######################### before call the get_annual_mb function #########################")
+            # print("fls is : ",fls)
+            # fl_id = 0
+            # print("fl_id is :",fl_id)
+            # print("######################### before call the get_annual_mb function #########################")
+            mean_mb_annual=surface_m * 0.
+            for y in range(len(mb_years)):
+                mean_mb_annual+=mb_model.get_annual_mb(fls = fls, fl_id = -1, heights=surface_m, year=y)
+                print('y in fa_sermeq_speed_law_inv is :',y)
+            mean_mb_annual=mean_mb_annual/float(len(mb_years))
             print("mean_mb_annual is (m ice per second):",mean_mb_annual)
 
             Terminus_mb = mean_mb_annual*cfg.SEC_IN_YEAR
@@ -721,6 +724,7 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
             width_terminus = profile[3][last_index]
             tau_y_terminus = tau_y(tau0=tau0, bed_elev=bed_terminus, thick=h_terminus, variable_yield=variable_yield)
             Hy_terminus = balance_thickness(yield_strength=tau_y_terminus, bed_elev=bed_terminus)
+            print('Hy_terminus:',Hy_terminus)
             if isinstance(model_velocity, (int, float)):
                 U_terminus = model_velocity
                 U_adj = model_velocity
@@ -733,6 +737,7 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
             H_adj = se_adj - bed_adj
             tau_y_adj = tau_y(tau0=tau0, bed_elev=bed_adj, thick=H_adj, variable_yield=variable_yield)
             Hy_adj = balance_thickness(yield_strength=tau_y_adj, bed_elev=bed_adj)
+            print('Hy_adj:',Hy_adj)
             # Gradients
             dx_term = profile[0][last_index] - profile[0][last_index - 1]  ## check grid spacing close to terminus
             dHdx = (h_terminus - H_adj) / dx_term
@@ -750,7 +755,8 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
                 # dx_term = profile[0][last_index] - profile[0][last_index - 1]  ## check grid spacing close to terminus
                 # dHdx = (h_terminus - H_adj) / dx_term
                 # dHydx = (Hy_terminus - Hy_adj) / dx_term
-                dUdx = (U_terminus - U_adj) / dx_term  ## velocity gradient
+                                # consider the dudx refers to the strain rate, here should be make sure dUdx is >=0
+                dUdx = abs((U_terminus - U_adj) / dx_term ) ## velocity gradient
                 ## Group the terms
                 dLdt_numerator = terminus_mb - (h_terminus * dUdx) - (U_terminus * dHdx)
                 dLdt_denominator = dHydx - dHdx  ## TODO: compute dHydx
