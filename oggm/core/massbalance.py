@@ -1899,7 +1899,7 @@ def _check_terminus_mass_flux(gdir, fls):
     # This variable is in "sensible" units normalized by width
     flux = fls[-1].flux_out
     aflux = flux * (gdir.grid.dx ** 2) / rho * 1e-9  # km3 ice per year
-    print("aflux is :",aflux)
+    print("aflux is km3 :",aflux)
 
     # If not marine and a bit far from zero, warning
     if cmb == 0 and not np.allclose(flux, 0, atol=0.01):
@@ -2001,10 +2001,10 @@ def apparent_mb_from_any_mb(gdir, mb_model=None,
     # For each flowline compute the apparent MB
     fls = gdir.read_pickle('inversion_flowlines')
 
-    print("mb_model is:",mb_model)
+    #print("mb_model is:",mb_model)
     if mb_model is None:
         mb_model = mb_model_class(gdir)
-    print("mb_model is:",mb_model)
+    #print("mb_model is:",mb_model)
     if mb_years is None:
         mb_years = cfg.PARAMS['geodetic_mb_period']
         y0, y1 = mb_years.split('_')
