@@ -1923,7 +1923,8 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
     width_m = flowline.widths_m
     # u_stag[-1] is the main flowline
     velocity_m = model.u_stag[-1]*cfg.SEC_IN_YEAR
-    x_m = flowline.dis_on_line*flowline.map_dx/1000
+    x_m = flowline.dis_on_line*flowline.map_dx
+    print('x_m in fa_sermq_law is :',x_m)
 
     # gdir : py:class:`oggm.GlacierDirectory`
     #     the glacier directory to process
@@ -1975,7 +1976,9 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
     h_terminus = se_terminus - bed_terminus
     width_terminus = profile[3][last_index]
     tau_y_terminus = tau_y(tau0=tau0, bed_elev=bed_terminus, thick=h_terminus, variable_yield=variable_yield)
+    print('tau_y_terminus in fa_sermeq_speed_law is:',tau_y_terminus)  
     Hy_terminus = balance_thickness(yield_strength=tau_y_terminus, bed_elev=bed_terminus)
+    print('Hy_terminus in fa_sermeq_speed_law is:',Hy_terminus)  
     if isinstance(model_velocity, (int, float)):
         U_terminus = model_velocity
         U_adj = model_velocity
@@ -1987,7 +1990,9 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
     bed_adj = profile[2][last_index - 1]
     H_adj = se_adj - bed_adj
     tau_y_adj = tau_y(tau0=tau0, bed_elev=bed_adj, thick=H_adj, variable_yield=variable_yield)
+    print('tau_y_adj in fa_sermeq_speed_law is:',tau_y_adj)
     Hy_adj = balance_thickness(yield_strength=tau_y_adj, bed_elev=bed_adj)
+    print('Hy_adj in fa_sermeq_speed_law is:',Hy_adj)
     # Gradients
     dx_term = profile[0][last_index] - profile[0][last_index - 1]  ## check grid spacing close to terminus
     dHdx = (h_terminus - H_adj) / dx_term
@@ -2005,11 +2010,13 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
         # dx_term = profile[0][last_index] - profile[0][last_index - 1]  ## check grid spacing close to terminus
         # dHdx = (h_terminus - H_adj) / dx_term
         # dHydx = (Hy_terminus - Hy_adj) / dx_term
-        dUdx = (U_terminus - U_adj) / dx_term  ## velocity gradient
+        dUdx = abs((U_terminus - U_adj) / dx_term)   ## velocity gradient
         ## Group the terms
         dLdt_numerator = terminus_mb - (h_terminus * dUdx) - (U_terminus * dHdx)
         dLdt_denominator = dHydx - dHdx  ## TODO: compute dHydx
         dLdt_viscoplastic = dLdt_numerator / dLdt_denominator
+        print('dLdt_numerator',dLdt_numerator)
+        print('dLdt_denominator',dLdt_denominator)
         # fa_viscoplastic = dLdt_viscoplastic -U_terminus  ## frontal ablation rate
         
         # try:
