@@ -291,9 +291,10 @@ class Centerline(object, metaclass=SuperclassMeta):
         # no more changes should happen after that
         smb = mb * self.widths * self.dx
         print("is_calving in set_apparent_mb is:",is_calving)
-        print("self.widths is:",self.widths)
-        print("self.dx :",self.dx)
-        print("self.widths_m:",self.widths_m)
+        # self.widths, self.dx with the unit is 1
+        #print("self.widths is:",self.widths)
+        #print("self.dx :",self.dx)
+        #print("self.widths_m:",self.widths_m)
         if is_calving:
             # in a calving case we see the last grid cell as the calving cell
             # and the extra added cell has no meaning
@@ -308,11 +309,11 @@ class Centerline(object, metaclass=SuperclassMeta):
             print("smb_neg is :",smb_neg)
             smb_add = smb_pos + smb_neg
             print("smb_add is :",smb_add)
-        print("self.flux is :",self.flux)
+        #print("self.flux is :",self.flux)
         flux_ext = np.concatenate((self.flux, [0]))
-        print("flux_ext is :",flux_ext)
+        #print("flux_ext is :",flux_ext)
         flux_needs_correction = False
-        print("flux_ext+smb_add is :",flux_ext+smb_add)
+        #print("flux_ext+smb_add is :",flux_ext+smb_add)
         flux = np.cumsum(flux_ext + smb_add)
         print("flux in Centerline.set_apparent_mb is :",flux)
 
@@ -326,6 +327,7 @@ class Centerline(object, metaclass=SuperclassMeta):
         self.flux_needs_correction = flux_needs_correction
 
         print("self.flows_to is :",self.flows_to)
+        print("self.flux_needs_correction is :",self.flux_needs_correction)
         # Add to outflow. That's why it should happen in order
         if self.flows_to is not None:
             n = len(self.flows_to.line.coords)
