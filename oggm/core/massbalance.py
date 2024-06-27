@@ -1895,11 +1895,12 @@ def _check_terminus_mass_flux(gdir, fls):
     # Check that we have done this correctly
     rho = cfg.PARAMS['ice_density']
     cmb = calving_mb(gdir)
-
+    print("calving_mb, cmb is :",cmb)
     # This variable is in "sensible" units normalized by width
     flux = fls[-1].flux_out
+    print("gdir.grid.dx is (m):",gdir.grid.dx)
     aflux = flux * (gdir.grid.dx ** 2) / rho * 1e-9  # km3 ice per year
-    print("aflux is km3 :",aflux)
+    print("aflux is km3 (calving):",aflux)
 
     # If not marine and a bit far from zero, warning
     if cmb == 0 and not np.allclose(flux, 0, atol=0.01):
@@ -2038,13 +2039,13 @@ def apparent_mb_from_any_mb(gdir, mb_model=None,
 
     # Flowlines in order to be sure
     rho = cfg.PARAMS['ice_density']
-    print("rho of ice is (kg m-3)",rho)
+    #print("rho of ice is (kg m-3)",rho)
     for fl_id, fl in enumerate(fls):
         mbz = 0
         for yr in mb_years:
             mbz += mb_model.get_annual_mb(fl.surface_h, year=yr,
                                           fls=fls, fl_id=fl_id)
-            print("year is:",yr)
+            #print("year is:",yr)
         mbz = mbz / len(mb_years)
         print("mbz is (m of ice per second)",mbz)
         fl.set_apparent_mb(mbz * cfg.SEC_IN_YEAR * rho + residual,
