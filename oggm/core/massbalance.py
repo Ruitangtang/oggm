@@ -1900,7 +1900,7 @@ def _check_terminus_mass_flux(gdir, fls):
     flux = fls[-1].flux_out
     print("gdir.grid.dx is (m):",gdir.grid.dx)
     aflux = flux * (gdir.grid.dx ** 2) / rho * 1e-9  # km3 ice per year
-    print("aflux is km3 (calving):",aflux)
+    print("aflux is km3 (calving) which should be zero or very close:",aflux)
 
     # If not marine and a bit far from zero, warning
     if cmb == 0 and not np.allclose(flux, 0, atol=0.01):
