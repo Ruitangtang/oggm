@@ -1876,7 +1876,7 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
             except:
                 print('You must set a bed elevation and ice thickness to use variable yield strength. Using constant yeild instead')
                 ty = tau1
-            N = RHO_ICE * G * thick - RHO_SEA * G * D  # Normal stress at bed
+            N = RHO_ICE * G * thick - RHO_SEA * G * D # Normal stress at bed
             #convert to Pa
             
             ty = tau1 + mu * N
