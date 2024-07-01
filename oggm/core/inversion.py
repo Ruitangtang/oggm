@@ -103,11 +103,12 @@ def prepare_for_inversion(gdir, add_debug_var=False,
         # This might error if usuer didnt compute apparent MB
         try:
             flux = fl.flux * (gdir.grid.dx**2) / cfg.SEC_IN_YEAR / rho
+            # unit of flux here is m3 s-1
         except TypeError:
             raise InvalidWorkflowError('Flux through flowline unknown. '
                                        'Did you compute the apparent MB?')
         flux_out = fl.flux_out * (gdir.grid.dx**2) / cfg.SEC_IN_YEAR / rho
-
+        # unit of flux_out here is m3 s-1
         # Clip flux to 0
         if np.any(flux < -0.1):
             log.info('(%s) has negative flux somewhere', gdir.rgi_id)
@@ -416,9 +417,9 @@ def _vol_below_water(surface_h, bed_h, bed_shape, thick, widths,
 
 
 def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_wl=None, v_scaling=1, verbose=False,
-                     tau0=1.5, variable_yield=None, mu=0.01,trim_profile=0,modelprms = None,glacier_rgi_table = None,
+                     tau0=1.5, variable_yield='variable', mu=0.01,trim_profile=0,modelprms = None,glacier_rgi_table = None,
                      hindcast = None, debug = None, debug_refreeze = None, option_areaconstant = None,
-                     inversion_filter = None):
+                     inversion_filter = None,water_depth = None, thick_T = None):
     """
     This function is used to calculate frontal ablation given ice speed forcing,
     for lake-terminating and tidewater glaciers
@@ -453,8 +454,8 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
 
     tau0: float, optional
         This glacier's yield strength [Pa]. Default is 150 kPa., default value here is 1.5
-    yield_type: str, optional
-        'constant' or 'variable' (Mohr-Coulomb) yielding. Default is constant.
+    variable_yield: yield_type: str, optional, variable, 'constant' or 'variable' (Mohr-Coulomb) yielding. Default is constant.
+        default is variable
     mu: float, optional
         Mohr-Coulomb cohesion, a coefficient between 0 and 1. Default is 0.01.
         Only used if we have variable yield
@@ -463,6 +464,9 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
         How many grid cells at the end of the profile to ignore.  Default is 1.
         If the initial profile is set by k-calving (as in testing) there can be a
         weird cliff shape with very thin final grid point and large velocity gradient
+
+    water_depth: water_depth at the calving front (m)
+    thick_T : thickness at the calving front (m)
     
     # parameters for the mb_model (Here is for  PyGEMMassBalance)
      ----------
@@ -513,7 +517,7 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
     RHO_ICE = 900.0  # ice density kg/m^3
     RHO_SEA = 1020.0  # seawater density kg/m^3
     print("variable_yield is ", variable_yield)
-    if variable_yield is not None and not variable_yield:
+    if variable_yield is None and not variable_yield:
         variable_yield = None
 #    if water_level is None:
 #        water_level = 0
@@ -521,7 +525,7 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
 #    rho_o = cfg.PARAMS['ocean_density']
     # ---------------------------------------------------------------------------
     # the yield strength
-    def tau_y(tau0=tau0, variable_yield=None, bed_elev=None, thick=None, mu=0.01):
+    def tau_y(tau0=tau0, variable_yield=None, bed_elev=None, thick=None, mu=0.01,water_depth =None):
         """
         Functional form of yield strength.
         Can do constant or Mohr-Coulomb yield strength.  Ideally, the glacier's yield type
@@ -547,14 +551,17 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
         """
         tau1=tau0*1e5
         if variable_yield is not None:
-            try:
-                if bed_elev < 0:
-                    D = -1 * bed_elev  # Water depth D the nondim bed topography value when Z<0
-                else:
-                    D = 0
-            except:
-                print('You must set a bed elevation and ice thickness to use variable yield strength. Using constant yeild instead')
-                ty = tau1
+            if water_depth is None:
+                try:
+                    if bed_elev < 0:
+                        D = -1 * bed_elev  # Water depth D the nondim bed topography value when Z<0
+                    else:
+                        D = 0
+                except:
+                    print('You must set a bed elevation and ice thickness to use variable yield strength. Using constant yeild instead')
+                    ty = tau1
+            else:
+                D = water_depth
             N = RHO_ICE * G * thick - RHO_SEA * G * D  # Normal stress at bed
             #convert to Pa
             
@@ -568,7 +575,7 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
     # ---------------------------------------------------------------------------
     # calculate the yield ice thickness
 
-    def balance_thickness(yield_strength, bed_elev):
+    def balance_thickness(yield_strength, bed_elev = None,water_depth = None):
         """
         Ice thickness such that the stress matches the yield strength.
 
@@ -586,10 +593,13 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
         Hy: float
             The ice thickness for stress balance at the terminus. [units m]
         """
-        if bed_elev < 0:
-            D = -1 * bed_elev
+        if water_depth is None:
+            if bed_elev < 0:
+                D = -1 * bed_elev
+            else:
+                D = 0
         else:
-            D = 0
+            D = water_depth
         return (2 * yield_strength / (RHO_ICE * G)) + np.sqrt(
             (RHO_SEA * (D ** 2) / RHO_ICE) + ((2 * yield_strength / (RHO_ICE * G)) ** 2))
         # TODO: Check on exponent on last term.  In Ultee & Bassis 2016, this is squared, but in Ultee & Bassis 2020 supplement, it isn't.
@@ -721,9 +731,11 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
             se_terminus = profile[1][last_index]
             bed_terminus = profile[2][last_index]
             h_terminus = se_terminus - bed_terminus
+            h_terminus_T = thick_T # the thickness revised based on water depth and free_board
             width_terminus = profile[3][last_index]
-            tau_y_terminus = tau_y(tau0=tau0, bed_elev=bed_terminus, thick=h_terminus, variable_yield=variable_yield)
-            Hy_terminus = balance_thickness(yield_strength=tau_y_terminus, bed_elev=bed_terminus)
+            tau_y_terminus = tau_y(tau0=tau0, bed_elev=bed_terminus, thick=h_terminus_T, variable_yield=variable_yield,water_depth=water_depth)
+            print('tau_y_terminus (Pa) is :',tau_y_terminus)
+            Hy_terminus = balance_thickness(yield_strength=tau_y_terminus, bed_elev=bed_terminus,water_depth=water_depth)
             print('Hy_terminus:',Hy_terminus)
             if isinstance(model_velocity, (int, float)):
                 U_terminus = model_velocity
@@ -735,12 +747,14 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
             se_adj = profile[1][last_index - 1]
             bed_adj = profile[2][last_index - 1]
             H_adj = se_adj - bed_adj
-            tau_y_adj = tau_y(tau0=tau0, bed_elev=bed_adj, thick=H_adj, variable_yield=variable_yield)
-            Hy_adj = balance_thickness(yield_strength=tau_y_adj, bed_elev=bed_adj)
+            H_adj_T= h_terminus_T*H_adj/h_terminus # derived based on h_terminus_T
+            water_depth_adj = water_depth*(se_adj-H_adj_T)/(se_terminus-h_terminus_T)
+            tau_y_adj = tau_y(tau0=tau0, bed_elev=bed_adj, thick=H_adj_T, variable_yield=variable_yield,water_depth=water_depth_adj)
+            Hy_adj = balance_thickness(yield_strength=tau_y_adj, bed_elev=bed_adj,water_depth=water_depth_adj)
             print('Hy_adj:',Hy_adj)
             # Gradients
             dx_term = profile[0][last_index] - profile[0][last_index - 1]  ## check grid spacing close to terminus
-            dHdx = (h_terminus - H_adj) / dx_term
+            dHdx = (h_terminus_T - H_adj_T) / dx_term
             dHydx = (Hy_terminus - Hy_adj) / dx_term
             if np.isnan(U_terminus) or np.isnan(U_adj):
                 dUdx = np.nan  ## velocity gradient
@@ -758,7 +772,7 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
                                 # consider the dudx refers to the strain rate, here should be make sure dUdx is >=0
                 dUdx = abs((U_terminus - U_adj) / dx_term ) ## velocity gradient
                 ## Group the terms
-                dLdt_numerator = terminus_mb - (h_terminus * dUdx) - (U_terminus * dHdx)
+                dLdt_numerator = terminus_mb - (h_terminus_T * dUdx) - (U_terminus * dHdx)
                 dLdt_denominator = dHydx - dHdx  ## TODO: compute dHydx
                 dLdt_viscoplastic = dLdt_numerator / dLdt_denominator
                 # fa_viscoplastic = dLdt_viscoplastic -U_terminus  ## frontal ablation rate
@@ -781,7 +795,7 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
 
             SQFA = {'se_terminus': se_terminus,
                     'bed_terminus': bed_terminus,
-                    'Thickness_termi': h_terminus,
+                    'Thickness_termi': h_terminus_T,
                     'Width_termi':  width_terminus,
                     'Hy_thickness': Hy_terminus,
                     'Velocity_termi': U_terminus,
@@ -796,14 +810,14 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
                 print('bed_terminus={}'.format(bed_terminus))
                 print('se_adj={}'.format(se_adj))
                 print('bed_adj={}'.format(bed_adj))
-                print('Thicknesses: Hterm {}, Hadj {}'.format(h_terminus, H_adj))
+                print('Thicknesses: Hterm {}, Hadj {}'.format(h_terminus_T, H_adj_T))
                 print('Hy_terminus={}'.format(Hy_terminus))
                 print('Hy_adj={}'.format(Hy_adj))
                 print('U_terminus={}'.format(U_terminus))
                 print('U_adj={}'.format(U_adj))
                 print('dUdx={}'.format(dUdx))
                 print('dx_term={}'.format(dx_term))
-                print('Checking dLdt: terminus_mb = {}. \n H dUdx = {}. \n U dHdx = {}.'.format(terminus_mb, dUdx * h_terminus,
+                print('Checking dLdt: terminus_mb = {}. \n H dUdx = {}. \n U dHdx = {}.'.format(terminus_mb, dUdx * h_terminus_T,
                                                                                                 U_terminus * dHdx))
                 print('Denom: dHydx = {} \n dHdx = {}'.format(dHydx, dHdx))
                 print('Viscoplastic dLdt={}'.format(dLdt_viscoplastic))
@@ -1664,9 +1678,11 @@ def calving_flux_from_depth(gdir, mb_model=None,mb_years=None,k=None, water_leve
             print('The terminus bed is already under the water level')
         #TODO the k should be the updated k, or the defaulted k
         s_fa = fa_sermeq_speed_law_inv(gdir=gdir, mb_model=mb_model,mb_years=mb_years, last_above_wl=last_above_wl,v_scaling = 1, verbose = True,tau0 = k,
-                                    mu = 0.01,trim_profile = 1,modelprms = modelprms,glacier_rgi_table = glacier_rgi_table,hindcast = hindcast,
+                                    mu = 0.01,trim_profile = 0,modelprms = modelprms,glacier_rgi_table = glacier_rgi_table,hindcast = hindcast,
                                     debug = debug, debug_refreeze = debug_refreeze,option_areaconstant = option_areaconstant,
-                                    inversion_filter = inversion_filter)
+                                    inversion_filter = inversion_filter,water_depth = water_depth, thick_T =thick)
+        
+
         flux = s_fa ['Sermeq_fa']*s_fa['Thickness_termi']*s_fa['Width_termi']/1e9
         flux_k_calving = k * thick * water_depth * width / 1e9 
     else:
@@ -1801,7 +1817,7 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
     #thick0 = cl['thick'][-1]
     #th = cls['hgt'][-1]
     if water_level is None:
-        th = cls['hgt'][-1]
+        th = cls['hgt'][-1] # cls['hgt'] is the surface elevation
         # For glaciers that are already relatively thick compared to the 
         # freeboard given by the DEM, it seems useful to start with a lower 
         # water level in order not to underestimate the initial thickness.
