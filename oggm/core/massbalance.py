@@ -1900,7 +1900,7 @@ def _check_terminus_mass_flux(gdir, fls):
     flux = fls[-1].flux_out
     print("gdir.grid.dx is (m):",gdir.grid.dx)
     aflux = flux * (gdir.grid.dx ** 2) / rho * 1e-9  # km3 ice per year
-    print("aflux is km3 (calving) which should be zero or very close:",aflux)
+    print("aflux is km3 a-1 (calving) which should be zero or very close:",aflux)
 
     # If not marine and a bit far from zero, warning
     if cmb == 0 and not np.allclose(flux, 0, atol=0.01):
@@ -2052,8 +2052,8 @@ def apparent_mb_from_any_mb(gdir, mb_model=None,
                            is_calving=is_calving)
         print('*****************************************************************')
         print("the apparent mb is set, and the apparent_mb  is (mm w.e. a-1) :",fl.apparent_mb)
-        print("the flux is  :",fl.flux)
-        print("the flux out is :",fl.flux_out)
+        print("the flux (mm w.e. a-1) is  :",fl.flux)
+        print("the flux out (mm w.e. a-1) is :",fl.flux_out)
         print("correct the flux is:",fl.flux_needs_correction)
         print('*****************************************************************')
         if fl_id < len(fls) and fl.flux_out < -1e3:
