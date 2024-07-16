@@ -419,7 +419,7 @@ def _vol_below_water(surface_h, bed_h, bed_shape, thick, widths,
 def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_wl=None, v_scaling=1, verbose=False,
                      tau0=1.5, variable_yield='variable', mu=0.01,trim_profile=0,modelprms = None,glacier_rgi_table = None,
                      hindcast = None, debug = None, debug_refreeze = None, option_areaconstant = None,
-                     inversion_filter = None,water_depth = None, thick_T = None):
+                     inversion_filter = None,water_depth = None):
     """
     This function is used to calculate frontal ablation given ice speed forcing,
     for lake-terminating and tidewater glaciers
@@ -731,9 +731,9 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
             se_terminus = profile[1][last_index]
             bed_terminus = profile[2][last_index]
             h_terminus = se_terminus - bed_terminus
-            h_terminus_T = thick_T # the thickness revised based on water depth and free_board
+            #h_terminus_T = thick_T # the thickness revised based on water depth and free_board
             width_terminus = profile[3][last_index]
-            tau_y_terminus = tau_y(tau0=tau0, bed_elev=bed_terminus, thick=h_terminus_T, variable_yield=variable_yield,water_depth=water_depth)
+            tau_y_terminus = tau_y(tau0=tau0, bed_elev=bed_terminus, thick=h_terminus, variable_yield=variable_yield,water_depth=water_depth)
             print('tau_y_terminus (Pa) is :',tau_y_terminus)
             Hy_terminus = balance_thickness(yield_strength=tau_y_terminus, bed_elev=bed_terminus,water_depth=water_depth)
             print('Hy_terminus:',Hy_terminus)
@@ -747,14 +747,15 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
             se_adj = profile[1][last_index - 1]
             bed_adj = profile[2][last_index - 1]
             H_adj = se_adj - bed_adj
-            H_adj_T= h_terminus_T*H_adj/h_terminus # derived based on h_terminus_T
-            water_depth_adj = water_depth*(se_adj-H_adj_T)/(se_terminus-h_terminus_T)
-            tau_y_adj = tau_y(tau0=tau0, bed_elev=bed_adj, thick=H_adj_T, variable_yield=variable_yield,water_depth=water_depth_adj)
-            Hy_adj = balance_thickness(yield_strength=tau_y_adj, bed_elev=bed_adj,water_depth=water_depth_adj)
+            #H_adj_T= h_terminus_T*H_adj/h_terminus # derived based on h_terminus_T
+            #water_depth_adj = water_depth*(se_adj-H_adj_T)/(se_terminus-h_terminus_T)
+
+            tau_y_adj = tau_y(tau0=tau0, bed_elev=bed_adj, thick=H_adj, variable_yield=variable_yield,water_depth=water_depth)
+            Hy_adj = balance_thickness(yield_strength=tau_y_adj, bed_elev=bed_adj,water_depth=water_depth)
             print('Hy_adj:',Hy_adj)
             # Gradients
             dx_term = profile[0][last_index] - profile[0][last_index - 1]  ## check grid spacing close to terminus
-            dHdx = (h_terminus_T - H_adj_T) / dx_term
+            dHdx = (h_terminus - H_adj) / dx_term
             dHydx = (Hy_terminus - Hy_adj) / dx_term
             if np.isnan(U_terminus) or np.isnan(U_adj):
                 dUdx = np.nan  ## velocity gradient
@@ -772,7 +773,7 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
                                 # consider the dudx refers to the strain rate, here should be make sure dUdx is >=0
                 dUdx = abs((U_terminus - U_adj) / dx_term ) ## velocity gradient
                 ## Group the terms
-                dLdt_numerator = terminus_mb - (h_terminus_T * dUdx) - (U_terminus * dHdx)
+                dLdt_numerator = terminus_mb - (h_terminus* dUdx) - (U_terminus * dHdx)
                 dLdt_denominator = dHydx - dHdx  ## TODO: compute dHydx
                 dLdt_viscoplastic = dLdt_numerator / dLdt_denominator
                 # fa_viscoplastic = dLdt_viscoplastic -U_terminus  ## frontal ablation rate
@@ -795,7 +796,7 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
 
             SQFA = {'se_terminus': se_terminus,
                     'bed_terminus': bed_terminus,
-                    'Thickness_termi': h_terminus_T,
+                    'Thickness_termi': h_terminus,
                     'Width_termi':  width_terminus,
                     'Hy_thickness': Hy_terminus,
                     'Velocity_termi': U_terminus,
@@ -810,14 +811,14 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
                 print('bed_terminus={}'.format(bed_terminus))
                 print('se_adj={}'.format(se_adj))
                 print('bed_adj={}'.format(bed_adj))
-                print('Thicknesses: Hterm {}, Hadj {}'.format(h_terminus_T, H_adj_T))
+                print('Thicknesses: Hterm {}, Hadj {}'.format(h_terminus, H_adj))
                 print('Hy_terminus={}'.format(Hy_terminus))
                 print('Hy_adj={}'.format(Hy_adj))
                 print('U_terminus={}'.format(U_terminus))
                 print('U_adj={}'.format(U_adj))
                 print('dUdx={}'.format(dUdx))
                 print('dx_term={}'.format(dx_term))
-                print('Checking dLdt: terminus_mb = {}. \n H dUdx = {}. \n U dHdx = {}.'.format(terminus_mb, dUdx * h_terminus_T,
+                print('Checking dLdt: terminus_mb = {}. \n H dUdx = {}. \n U dHdx = {}.'.format(terminus_mb, dUdx * Hy_terminus,
                                                                                                 U_terminus * dHdx))
                 print('Denom: dHydx = {} \n dHdx = {}'.format(dHydx, dHdx))
                 print('Viscoplastic dLdt={}'.format(dLdt_viscoplastic))
@@ -1675,12 +1676,11 @@ def calving_flux_from_depth(gdir, mb_model=None,mb_years=None,k=None, water_leve
         if bed_h[last_above_wl] > water_level:
             print('The terminus bed is still above the water leverl')
         else:
-            print('The terminus bed is already under the water level')
-        #TODO the k should be the updated k, or the defaulted k
+            print('The terminus bed is already under the water level')        #TODO the k should be the updated k, or the defaulted k
         s_fa = fa_sermeq_speed_law_inv(gdir=gdir, mb_model=mb_model,mb_years=mb_years, last_above_wl=last_above_wl,v_scaling = 1, verbose = True,tau0 = k,
                                     mu = 0.01,trim_profile = 0,modelprms = modelprms,glacier_rgi_table = glacier_rgi_table,hindcast = hindcast,
                                     debug = debug, debug_refreeze = debug_refreeze,option_areaconstant = option_areaconstant,
-                                    inversion_filter = inversion_filter,water_depth = water_depth, thick_T =thick)
+                                    inversion_filter = inversion_filter,water_depth = water_depth)
         
 
         flux = s_fa ['Sermeq_fa']*s_fa['Thickness_termi']*s_fa['Width_termi']/1e9
@@ -1836,7 +1836,7 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
         #                              water_depth=h)
         fl = calving_flux_from_depth(gdir, mb_model=mb_model,mb_years=mb_years,k= calving_k,
                                      water_level=water_level,water_depth= h,
-                                     calving_law_inv =  calving_law_inv,modelprms = modelprms,
+                                     calving_law_inv = 'k_calving', modelprms = modelprms,
                                      glacier_rgi_table = glacier_rgi_table,hindcast = hindcast,
                                      debug = debug, debug_refreeze = debug_refreeze,
                                      option_areaconstant = option_areaconstant,
@@ -1935,6 +1935,7 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
 
     # OK, we now find the zero between abs min and an arbitrary high front
     abs_min = abs_min['x'][0]
+    print('abs_min is',abs_min)
     try:
         opt = optimize.brentq(to_minimize, abs_min, 1e4)
     except:
@@ -2015,11 +2016,10 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
     #     water_level = th - f_b
     #     opt = 100
     #     rel_h = opt
-    #     thick = ((rho_o/rho)*rel_h*f_b) / ((rho_o/rho) * rel_h - rel_h + 1)
-    #     water_depth = utils.clip_min(1e-3, thick - f_b)
+    #     thick = ((rho_o/rho)*rel_h*f_b) / ((rho_o/rho) * rel_h - rel_h + 1)    #     water_depth = utils.clip_min(1e-3, thick - f_b)
 
     out = calving_flux_from_depth(gdir, water_level=water_level,mb_model=mb_model,mb_years=mb_years,  k=calving_k,
-                                  water_depth=opt, calving_law_inv = calving_law_inv)
+                                  water_depth=opt, calving_law_inv = 'k_calving')
     # Find volume with water and frontal ablation
     f_calving = out['flux']
 
