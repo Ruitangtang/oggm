@@ -999,11 +999,11 @@ class FlowlineModel(object):
                 
                 # Check for NaNs
                 for fl in self.fls:
-                    print("the fl.thick in run_until is",fl.thick)
+                    #print("the fl.thick in run_until is",fl.thick)
                     if np.any(~np.isfinite(fl.thick)):
                         raise FloatingPointError('NaN in numerical solution, '
                                                 'at year: {}'.format(self.yr))
-                print("================ run_until is successful ================")
+                #print("================ run_until is successful ================")
             except:
                 print("something in run_until in year",y,"is wrong")
                 print(traceback.format_exc())
@@ -1134,8 +1134,8 @@ class FlowlineModel(object):
                                                        start_month=sm)
         # cyrs, cmonths = utils.hydrodate_to_calendardate(yrs, months,
         #                                                 start_month=sm)
-        print("hyrs is :",hyrs)
-        print("hmonths is :",hmonths)
+        # print("hyrs is :",hyrs)
+        # print("hmonths is :",hmonths)
         # init output
         if geom_path:
             self.to_geometry_netcdf(geom_path)
@@ -1286,7 +1286,7 @@ class FlowlineModel(object):
             diag_ds['discharge_m3'].attrs['description'] = ('Ice flux through '
                                                             'terminal boundary')
             diag_ds['discharge_m3'].attrs['unit'] = 'm 3'
-        print("ovars is :",ovars)
+        #print("ovars is :",ovars)
         for gi in range(10):
             vn = f'terminus_thick_{gi}'
             if vn in ovars:
@@ -1923,6 +1923,7 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
     width_m = flowline.widths_m
     # u_stag[-1] is the main flowline
     velocity_m = model.u_stag[-1]*cfg.SEC_IN_YEAR
+    print('velocity_m is', velocity_m)
     x_m = flowline.dis_on_line*flowline.map_dx
     print('x_m in fa_sermq_law is :',x_m)
 
@@ -2335,14 +2336,14 @@ class FluxBasedModel(FlowlineModel):
             u_drag = self.u_drag[fl_id]
             u_slide = self.u_slide[fl_id]
             flux_gate = self.flux_gate[fl_id]
-            #water_depth_stag = self.water_depth_stag[fl_id]
+            water_depth_stag = depth_stag
             # Flowline state
             surface_h = fl.surface_h
             thick = fl.thick
             width = fl.widths_m
             section = fl.section
             dx = fl.dx_meter
-            #water_depth = fl.water_depth
+            #depth = fl.water_depth
             calving_flux = 0.
             depth = utils.clip_min(0,self.water_level - fl.bed_h)
             print("dt in the step(self,dt) is:",dt,"fl_id:",fl_id)
@@ -2363,10 +2364,10 @@ class FluxBasedModel(FlowlineModel):
             #     # by clipping the surface slope here. It is completely
             #     # arbitrary but reduces ice deformation at the calving front.
             #     # I think that in essence, it is also partly
-            #     # a "calving process", because this ice deformation must
+            #     # a "calving process", because this ice deformation must            
             #     # be less at the calving front. The result is that calving
             #     # front "free boards" are quite high.
-            #     # Note that 0 is arbitrary, it could be any value below SL
+            #     # Note that 0 is arbitrary, it could be any value below SL            
             #     print("We lower the max possible ice deformation",
             #           "by clipping the surface slope here")
             #     surface_h = utils.clip_min(surface_h, self.water_level)
@@ -2375,14 +2376,22 @@ class FluxBasedModel(FlowlineModel):
             slope_stag[0] = 0
             slope_stag[1:-1] = (surface_h[0:-1] - surface_h[1:]) / dx
             slope_stag[-1] = slope_stag[-2]
+            print("surface_h is :",surface_h)
+            print("dx is :",dx)
+            print("the slope_stag is 01:",slope_stag)
 
             # Staggered thick
+            print("thick is :",thick)
             thick_stag[1:-1] = (thick[0:-1] + thick[1:]) / 2.
             thick_stag[[0, -1]] = thick[[0, -1]]
-
-            # Staggeered depth
-            depth_stag[1:-1] = (depth[0:-1] + depth[1:]) / 2.
-            depth_stag[[0, -1]] = depth[[0, -1]]   
+            # for the pixel after last ice, the thick should still be zero, not the (thick+0)/2
+            print("the type of thick is :",type(thick))
+            thick_ori_extend = np.append(thick,0)
+            thick_stag[thick_ori_extend == 0] = 0 
+            print('thick_stag is',thick_stag)
+            # # Staggeered depth
+            water_depth_stag[1:-1] = (depth[0:-1] + depth[1:]) / 2.
+            water_depth_stag[[0, -1]] = depth[[0, -1]]   
             # Staggered section
             section_stag[1:-1] = (section[0:-1] + section[1:]) / 2.
             section_stag[[0, -1]] = section[[0, -1]]         
@@ -2429,14 +2438,18 @@ class FluxBasedModel(FlowlineModel):
                                 (fl.bed_h < self.water_level) &
                                 (fl.thick >= (self.rho_o / self.rho) * depth))
                 print("ice above water level is :",ice_above_wl)
+                print("self.water_level is :",self.water_level)
+                print("self.depth is :", depth)
+                print("fl.bed_h is :",fl.bed_h)
+                print("the thick threshold is :",(self.rho_o / self.rho) * depth)
                 if np.any(ice_above_wl):
                     last_above_wl = np.where(ice_above_wl)[0][-1]
                 else:
                     last_above_wl = np.nonzero((fl.bed_h < self.water_level) &
-                                               (fl.thick > 0))[0][-1]
+                                               (fl.thick > 0))[0][-1]    
                 last_above_wl = int(utils.clip_max(last_above_wl, 
                                                    len(fl.bed_h)-2))
-                print("last_above_wl is :",last_above_wl)
+
                 no_ice = np.nonzero((fl.thick <= 0))[0]
                 last_ice = np.where((fl.thick[no_ice-1] > 0) & \
                                 (fl.surface_h[no_ice-1] > self.water_level))[0]
@@ -2458,16 +2471,18 @@ class FluxBasedModel(FlowlineModel):
                 h = fl.thick[last_above_wl]
                 d = h - (fl.surface_h[last_above_wl] - self.water_level)
                 thick_stag[last_above_wl+1] = h
-                depth_stag[last_above_wl+1] = d
-
+                water_depth_stag[last_above_wl+1] = d
                 # Determine height above buoancy
-                z_a_b = utils.clip_min(0,thick_stag - depth_stag *
+                z_a_b = utils.clip_min(0.01,thick_stag - water_depth_stag *
                                          (self.rho_o / self.rho))
+                z_a_b[thick_stag == 0] = 1  # Stress is zero there
                 print("height above buoancy is :",z_a_b)
                 # Compute net hydrostatic force at the front. One could think 
                 # about incorporating ice mélange / sea ice here as an 
                 # additional backstress term. (And also in the frontal ablation
                 # formulation below.)
+                stretch_dist = 1
+                # if calving_is_happening:
                 if fl.bed_h[last_above_wl+1] < self.water_level:
                     print("fl.bed_h[last_above_wl+1] < self.water_level")
                     pull_last = utils.clip_min(0,0.5 * G * (self.rho * h**2 -
@@ -2481,6 +2496,7 @@ class FluxBasedModel(FlowlineModel):
                     n_stretch = np.rint(stretch_dist/dx).astype(int)
 
                     # Define stretch factor and add to driving stress
+                    #stretch_factor = np.arange(1, n_stretch + 2) * 2 / (n_stretch + 1)
                     stretch_factor = np.zeros(n_stretch)
                     for j in range(n_stretch):
                         stretch_factor[j] = 2*(j+1)/(n_stretch+1)
@@ -2500,40 +2516,47 @@ class FluxBasedModel(FlowlineModel):
                                                                  [stretch_first-1:\
                                                                   stretch_last-1])
                 stress = self.rho*G*slope_stag*thick_stag
+                print("the slope stag is 02 :",slope_stag)
                 print("the stress is :",stress)
+                print("the thick_stag is :",thick_stag)
 
                 # Add "stretching stress" to basal shear/driving stress
                 if fl.bed_h[last_above_wl+1] < self.water_level:
+                # if calving_is_happening:
+                    #stress[stretch_first:stretch_last+1] += stretch_factor * (pull_last / stretch_dist)
                     stress[stretch_first:stretch_last] = (stress[stretch_first:
                                                           stretch_last] +
                                                           stretch_factor *
                                                           (pull_last /
                                                            stretch_dist))
                 print("the stress updated as: ",stress)
+                #print('sf_stag is :',sf_stag)
                 # Compute velocities
-                u_drag[:] = thick_stag * stress**N * self._fd * sf_stag**N
+                #u_drag[:] = thick_stag * stress**N * self._fd * sf_stag**N
+                u_drag[:] = thick_stag * stress**N * self._fd 
                 print("u_drag is :",u_drag)
-                # Arbitrarily manipulating u_slide for grid cells
-                # approaching buoyancy to prevent it from going
-                # towards infinity...
+                # Sliding is increased where there is water
                 print("z_a_b is :",z_a_b)
                 print("fs is :",self.fs)
-                try:
-                    #u_slide[:] = (stress**N / z_a_b) * self.fs * sf_stag**N # Not sure if sf_stag is correct here
-                    #u_slide[:] = (np.where(z_a_b == 0,0,stress**N / z_a_b)) * self.fs * sf_stag**N
-                    u_slide[:] = np.divide(stress**N, z_a_b, where=(z_a_b != 0), out=np.zeros_like(stress)) * self.fs * sf_stag**N
- 
-                except:
-                    print("something is wrong when calculating u_slide")
+                u_slide[:] = (stress ** N / z_a_b) * self.fs
                 u_slide = np.where(z_a_b < 0.5, 4*u_drag, u_slide)
                 print("u_slide is", u_slide)
+                # try:
+                #     #u_slide[:] = (stress**N / z_a_b) * self.fs * sf_stag**N # Not sure if sf_stag is correct here
+                #     #u_slide[:] = (np.where(z_a_b == 0,0,stress**N / z_a_b)) * self.fs * sf_stag**N
+                #     u_slide[:] = np.divide(stress**N, z_a_b, where=(z_a_b != 0), out=np.zeros_like(stress)) * self.fs * sf_stag**N
+                # except:
+                #     print("something is wrong when calculating u_slide")
+                
                 # Force velocity beyond grounding line to be the same as the one
                 # across the grounding line. Entering uncharted (floating/shelf) 
                 # territory here...
                 if fl.bed_h[last_above_wl+1] < self.water_level:
-                    u_slide[last_above_wl+2:] = u_slide[last_above_wl+1]
-                    u_drag[last_above_wl+2:] = u_drag[last_above_wl+1]
-
+                    # u_slide[last_above_wl+2:] = u_slide[last_above_wl+1]
+                    # u_drag[last_above_wl+2:] = u_drag[last_above_wl+1]
+                # if calving_is_happening:
+                    u_drag[last_above_wl + 2:] = 0
+                    u_slide[last_above_wl + 2:] = 0
                 u_stag[:] = u_drag + u_slide
                 print("u_stag is :",u_stag)
                 # Staggered section
@@ -2543,43 +2566,57 @@ class FluxBasedModel(FlowlineModel):
                 section_stag[[0, -1]] = section[[0, -1]]
                 section_stag[last_above_wl+1] = section[last_above_wl]
                 print("section_stag is :",section_stag)
-                # We calculate the "baseline" calving flux and discharge here to
-                # be consistent with the dynamics above
-                k = self.calving_k
-                if self.calving_law == fa_sermeq_speed_law:
-                    print("before calving")
-                    print("model.yr is :",self.yr)
-                    try:
-                        # Transit the unit of tau0 to Pa, based on the equation self.calving_k= calving_k/cfg.SEC_IN_YEAR
-                        # tau0 = self.calving_k * cfg.SEC_IN_YEAR
-                        s_fa = self.calving_law(self, last_above_wl,v_scaling = 1, verbose = True,tau0 = k*cfg.SEC_IN_YEAR,
-                                            variable_yield=self.variable_yield, mu = 0.01,trim_profile = 0)
-                        qq_calving = s_fa ['Sermeq_fa']*s_fa['Thickness_termi']*s_fa['Width_termi']/cfg.SEC_IN_YEAR
-                        print("after calving")
-                        print("qq_calving is (m3 s-1):",qq_calving)
+                #if calving_is_happening:
+                if fl.bed_h[last_above_wl+1] < self.water_level:
+                    # We calculate the "baseline" calving flux and discharge here to
+                    # be consistent with the dynamics above
+                    k = self.calving_k
+                    print("calving_k before the fa_sermeq_speed_law is :",k)
+                    if self.calving_law == fa_sermeq_speed_law:
+                        print("before calving")
+                        print("model.yr is :",self.yr)
+                        try:
+                            # Transit the unit of tau0 to Pa, based on the equation self.calving_k= calving_k/cfg.SEC_IN_YEAR
+                            # tau0 = self.calving_k * cfg.SEC_IN_YEAR
+                            s_fa = self.calving_law(self, last_above_wl,v_scaling = 1, verbose = True,tau0 = k*cfg.SEC_IN_YEAR,
+                                                variable_yield=self.variable_yield, mu = 0.01,trim_profile = 0)
+                            calving_flux = s_fa ['Sermeq_fa']*s_fa['Thickness_termi']*s_fa['Width_termi']/cfg.SEC_IN_YEAR
+                            print("after calving")
+                            print("calving_flux is (m3 s-1):",calving_flux)
 
-                    except RuntimeError:
-                        traceback.print_exception(*sys.exc_info())
-                else:
-                    qq_calving = self.calving_law(self, fl, last_above_wl)
-                
-                self.calving_flux = utils.clip_min(0, qq_calving)
-                # self.calving_flux = utils.clip_min(0, k * d * h * 
-                #                                    fl.widths_m[last_above_wl])
-                self.discharge = u_stag[last_above_wl+1] * section[last_above_wl]
-                self.last_before = last_above_wl
+                        except RuntimeError:
+                            traceback.print_exception(*sys.exc_info())
+                    else:
+                        calving_flux = self.calving_law(self, fl, last_above_wl)
+                    
+                    self.calving_flux = utils.clip_min(0, calving_flux)
+                    # self.calving_flux = utils.clip_min(0, k * d * h * 
+                    #                                    fl.widths_m[last_above_wl])
+                    self.discharge = u_stag[last_above_wl+1] * section[last_above_wl]
+                    self.last_before = last_above_wl
 
             # Usual ice dynamics
             else:
                 rhogh = (self.rho*G*slope_stag)**N
-                u_drag[:] = (thick_stag**(N+1)) * self._fd * rhogh * \
-                              sf_stag**N
-                u_slide[:] = (thick_stag**(N-1)) * self.fs * rhogh * \
-                              sf_stag**N # Not sure if sf is correct here                
-                u_stag[:] = (thick_stag**(N+1)) * self._fd * rhogh * sf_stag**N + \
-                        (thick_stag**(N-1)) * self.fs * rhogh
+                # u_drag[:] = (thick_stag**(N+1)) * self._fd * rhogh * \
+                #               sf_stag**N
+                u_drag[:] = (thick_stag**(N+1)) * self._fd * rhogh 
+                # Temporary check for above
+                stress = self.rho * G * slope_stag * thick_stag
+                vel = thick_stag * stress ** N * self._fd
+                assert np.allclose(u_drag, vel)
+                # u_slide[:] = (thick_stag**(N-1)) * self.fs * rhogh * \
+                #               sf_stag**N # Not sure if sf is correct here   
+                u_slide[:] = (thick_stag**(N-1)) * self.fs * rhogh
+                z_a_b = thick_stag
+                z_a_b[thick_stag == 0] = 1
+                vel = (stress ** N / z_a_b) * self.fs
+                assert np.allclose(u_slide, vel)                                
+                # u_stag[:] = (thick_stag**(N+1)) * self._fd * rhogh * sf_stag**N + \
+                #         (thick_stag**(N-1)) * self.fs * rhogh
+                u_stag[:] = u_drag + u_slide
 
-                # Staggered section
+                # # Staggered section
                 section_stag[1:-1] = (section[0:-1] + section[1:]) / 2.
                 section_stag[[0, -1]] = section[[0, -1]]
 
