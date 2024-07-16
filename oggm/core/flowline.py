@@ -2483,38 +2483,38 @@ class FluxBasedModel(FlowlineModel):
                 # formulation below.)
                 stretch_dist = 1
                 # if calving_is_happening:
-                if fl.bed_h[last_above_wl+1] < self.water_level:
-                    print("fl.bed_h[last_above_wl+1] < self.water_level")
-                    pull_last = utils.clip_min(0,0.5 * G * (self.rho * h**2 -
-                                               self.rho_o * d**2))
+                #if fl.bed_h[last_above_wl+1] < self.water_level:
+                print("fl.bed_h[last_above_wl+1] < self.water_level")
+                pull_last = utils.clip_min(0,0.5 * G * (self.rho * h**2 -
+                                            self.rho_o * d**2))
 
-                    # Determine distance over which above stress is distributed
-                    stretch_length = (last_above_wl - first_ice) * dx
-                    stretch_length = utils.clip_min(stretch_length, dx)
-                    stretch_dist = utils.clip_max(stretch_length,
-                                                  self.stretch_dist_p)
-                    n_stretch = np.rint(stretch_dist/dx).astype(int)
+                # Determine distance over which above stress is distributed
+                stretch_length = (last_above_wl - first_ice) * dx
+                stretch_length = utils.clip_min(stretch_length, dx)
+                stretch_dist = utils.clip_max(stretch_length,
+                                                self.stretch_dist_p)
+                n_stretch = np.rint(stretch_dist/dx).astype(int)
 
-                    # Define stretch factor and add to driving stress
-                    #stretch_factor = np.arange(1, n_stretch + 2) * 2 / (n_stretch + 1)
-                    stretch_factor = np.zeros(n_stretch)
-                    for j in range(n_stretch):
-                        stretch_factor[j] = 2*(j+1)/(n_stretch+1)
-                    if dx > stretch_dist:
-                        stretch_factor = stretch_dist / dx
-                        n_stretch = 1
+                # Define stretch factor and add to driving stress
+                #stretch_factor = np.arange(1, n_stretch + 2) * 2 / (n_stretch + 1)
+                stretch_factor = np.zeros(n_stretch)
+                for j in range(n_stretch):
+                    stretch_factor[j] = 2*(j+1)/(n_stretch+1)
+                if dx > stretch_dist:
+                    stretch_factor = stretch_dist / dx
+                    n_stretch = 1
 
-                    stretch_first = utils.clip_min(0,(last_above_wl+2)-
-                                                      n_stretch).astype(int)
-                    stretch_last = last_above_wl+2
+                stretch_first = utils.clip_min(0,(last_above_wl+2)-
+                                                    n_stretch).astype(int)
+                stretch_last = last_above_wl+2
 
-                    # Take slope for stress calculation at boundary grid cell 
-                    # as the mean over the "stretched" distance (see above)
-                    if last_above_wl+1 < len(fl.bed_h) and \
-                       stretch_first != stretch_last-1:
-                        slope_stag[last_above_wl+1] = np.nanmean(slope_stag\
-                                                                 [stretch_first-1:\
-                                                                  stretch_last-1])
+                # Take slope for stress calculation at boundary grid cell 
+                # as the mean over the "stretched" distance (see above)
+                if last_above_wl+1 < len(fl.bed_h) and \
+                    stretch_first != stretch_last-1:
+                    slope_stag[last_above_wl+1] = np.nanmean(slope_stag\
+                                                                [stretch_first-1:\
+                                                                stretch_last-1])
                 stress = self.rho*G*slope_stag*thick_stag
                 print("the slope stag is 02 :",slope_stag)
                 print("the stress is :",stress)
