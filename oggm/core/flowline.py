@@ -975,6 +975,8 @@ class FlowlineModel(object):
             # Add the last date to be sure we end on it - implementations
             # of `step()` and of the loop below should not run twice anyways
             ts = np.append(ts, y1)
+            print("the self.yr is :",self.yr)
+            print("the self.y0 is :",self.y0)
         else:
             ts = np.arange(int(self.yr), int(y1+1))
         print("required model steps is :",self.required_model_steps)
@@ -2394,7 +2396,7 @@ class FluxBasedModel(FlowlineModel):
             water_depth_stag[[0, -1]] = depth[[0, -1]]   
             # Staggered section
             section_stag[1:-1] = (section[0:-1] + section[1:]) / 2.
-            section_stag[[0, -1]] = section[[0, -1]]         
+            section_stag[[0, -1]] = section[[0, -1]]        
 
             # Resetting variables (necessary?)
             print("************** start to reset variables **************")
@@ -2472,49 +2474,48 @@ class FluxBasedModel(FlowlineModel):
                 d = h - (fl.surface_h[last_above_wl] - self.water_level)
                 thick_stag[last_above_wl+1] = h
                 water_depth_stag[last_above_wl+1] = d
-                # Determine height above buoancy
+                # Determine height above buoancy,avoid dividing zero where thick eqauls water depth
                 z_a_b = utils.clip_min(0.01,thick_stag - water_depth_stag *
                                          (self.rho_o / self.rho))
-                z_a_b[thick_stag == 0] = 1  # Stress is zero there
+                z_a_b[thick_stag == 0] = 1  # Stress is zero there, so the sliding velocity is zero
                 print("height above buoancy is :",z_a_b)
                 # Compute net hydrostatic force at the front. One could think 
                 # about incorporating ice mélange / sea ice here as an 
                 # additional backstress term. (And also in the frontal ablation
                 # formulation below.)
-                stretch_dist = 1
+                #stretch_dist = 1
                 # if calving_is_happening:
-                #if fl.bed_h[last_above_wl+1] < self.water_level:
-                print("fl.bed_h[last_above_wl+1] < self.water_level")
-                pull_last = utils.clip_min(0,0.5 * G * (self.rho * h**2 -
-                                            self.rho_o * d**2))
+                if fl.bed_h[last_above_wl+1] < self.water_level:
+                    pull_last = utils.clip_min(0,0.5 * G * (self.rho * h**2 -
+                                                self.rho_o * d**2))
 
-                # Determine distance over which above stress is distributed
-                stretch_length = (last_above_wl - first_ice) * dx
-                stretch_length = utils.clip_min(stretch_length, dx)
-                stretch_dist = utils.clip_max(stretch_length,
-                                                self.stretch_dist_p)
-                n_stretch = np.rint(stretch_dist/dx).astype(int)
+                    # Determine distance over which above stress is distributed
+                    stretch_length = (last_above_wl - first_ice) * dx
+                    stretch_length = utils.clip_min(stretch_length, dx)
+                    stretch_dist = utils.clip_max(stretch_length,
+                                                    self.stretch_dist_p)
+                    n_stretch = np.rint(stretch_dist/dx).astype(int)
 
-                # Define stretch factor and add to driving stress
-                #stretch_factor = np.arange(1, n_stretch + 2) * 2 / (n_stretch + 1)
-                stretch_factor = np.zeros(n_stretch)
-                for j in range(n_stretch):
-                    stretch_factor[j] = 2*(j+1)/(n_stretch+1)
-                if dx > stretch_dist:
-                    stretch_factor = stretch_dist / dx
-                    n_stretch = 1
+                    # Define stretch factor and add to driving stress
+                    #stretch_factor = np.arange(1, n_stretch + 2) * 2 / (n_stretch + 1)
+                    stretch_factor = np.zeros(n_stretch)
+                    for j in range(n_stretch):
+                        stretch_factor[j] = 2*(j+1)/(n_stretch+1)
+                    if dx > stretch_dist:
+                        stretch_factor = stretch_dist / dx
+                        n_stretch = 1
 
-                stretch_first = utils.clip_min(0,(last_above_wl+2)-
-                                                    n_stretch).astype(int)
-                stretch_last = last_above_wl+2
+                    stretch_first = utils.clip_min(0,(last_above_wl+2)-
+                                                        n_stretch).astype(int)
+                    stretch_last = last_above_wl+2
 
-                # Take slope for stress calculation at boundary grid cell 
-                # as the mean over the "stretched" distance (see above)
-                if last_above_wl+1 < len(fl.bed_h) and \
-                    stretch_first != stretch_last-1:
-                    slope_stag[last_above_wl+1] = np.nanmean(slope_stag\
-                                                                [stretch_first-1:\
-                                                                stretch_last-1])
+                    # Take slope for stress calculation at boundary grid cell 
+                    # as the mean over the "stretched" distance (see above)
+                    if last_above_wl+1 < len(fl.bed_h) and \
+                        stretch_first != stretch_last-1:
+                        slope_stag[last_above_wl+1] = np.nanmean(slope_stag\
+                                                                    [stretch_first-1:\
+                                                                    stretch_last-1])
                 stress = self.rho*G*slope_stag*thick_stag
                 print("the slope stag is 02 :",slope_stag)
                 print("the stress is :",stress)
@@ -2539,7 +2540,7 @@ class FluxBasedModel(FlowlineModel):
                 print("z_a_b is :",z_a_b)
                 print("fs is :",self.fs)
                 u_slide[:] = (stress ** N / z_a_b) * self.fs
-                u_slide = np.where(z_a_b < 0.5, 4*u_drag, u_slide)
+                #u_slide = np.where(z_a_b < 0.01, 4*u_drag, u_slide)
                 print("u_slide is", u_slide)
                 # try:
                 #     #u_slide[:] = (stress**N / z_a_b) * self.fs * sf_stag**N # Not sure if sf_stag is correct here
@@ -2562,8 +2563,6 @@ class FluxBasedModel(FlowlineModel):
                 # Staggered section
                 # For the flux out of the last grid cell, the staggered section
                 # is set to the cross section of the calving front.
-                section_stag[1:-1] = (section[0:-1] + section[1:]) / 2.
-                section_stag[[0, -1]] = section[[0, -1]]
                 section_stag[last_above_wl+1] = section[last_above_wl]
                 print("section_stag is :",section_stag)
                 #if calving_is_happening:
@@ -2581,15 +2580,15 @@ class FluxBasedModel(FlowlineModel):
                             s_fa = self.calving_law(self, last_above_wl,v_scaling = 1, verbose = True,tau0 = k*cfg.SEC_IN_YEAR,
                                                 variable_yield=self.variable_yield, mu = 0.01,trim_profile = 0)
                             calving_flux = s_fa ['Sermeq_fa']*s_fa['Thickness_termi']*s_fa['Width_termi']/cfg.SEC_IN_YEAR
-                            print("after calving")
-                            print("calving_flux is (m3 s-1):",calving_flux)
+
 
                         except RuntimeError:
                             traceback.print_exception(*sys.exc_info())
                     else:
                         calving_flux = self.calving_law(self, fl, last_above_wl)
-                    
                     self.calving_flux = utils.clip_min(0, calving_flux)
+                    print("after calving")
+                    print("calving_flux is (m3 s-1):",calving_flux)
                     # self.calving_flux = utils.clip_min(0, k * d * h * 
                     #                                    fl.widths_m[last_above_wl])
                     self.discharge = u_stag[last_above_wl+1] * section[last_above_wl]
@@ -2626,11 +2625,12 @@ class FluxBasedModel(FlowlineModel):
             # Add boundary condition
             if flux_gate is not None:
                 flux_stag[0] = flux_gate(self.yr)
-            print("flux_stag is:",flux_gate)
+            print("flux_gate is:",flux_gate)
+            print("flux_stag is:",flux_stag)
             # CFL condition
             if not self.fixed_dt:
                 maxu = np.max(np.abs(u_stag))
-                print("maxu is :",maxu)
+                print("maxu is (m s-1) :",maxu)
                 if maxu > cfg.FLOAT_EPS:
                     cfl_dt = self.cfl_number * dx / maxu
                 else:
@@ -2900,6 +2900,7 @@ class FluxBasedModel(FlowlineModel):
                 while ((last_above_wl+1 < len(fl.bed_h)) and
                       (fl.surface_h[last_above_wl+1] > fl.surface_h[last_above_wl])
                        and fl.section[last_above_wl+1] > 0):
+                    print("The glacier is advancing in step ",dt)
                     diff_sec = 0    
                     old_thick = fl.thick[last_above_wl+1]
                     old_sec = fl.section[last_above_wl+1]
