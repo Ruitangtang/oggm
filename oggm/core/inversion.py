@@ -1836,7 +1836,7 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
         #                              water_depth=h)
         fl = calving_flux_from_depth(gdir, mb_model=mb_model,mb_years=mb_years,k= calving_k,
                                      water_level=water_level,water_depth= h,
-                                     calving_law_inv = 'k_calving', modelprms = modelprms,
+                                     calving_law_inv = fa_sermeq_speed_law_inv, modelprms = modelprms,
                                      glacier_rgi_table = glacier_rgi_table,hindcast = hindcast,
                                      debug = debug, debug_refreeze = debug_refreeze,
                                      option_areaconstant = option_areaconstant,
@@ -1930,7 +1930,10 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
         odf['calving_front_thick'] = out['thick']
         odf['calving_front_width'] = out['width']
         for k, v in odf.items():
-            gdir.add_to_diagnostics(k, v)
+            if isinstance(v,np.ndarray):
+                gdir.add_to_diagnostics(k, v.tolist())   
+            else:
+                gdir.add_to_diagnostics(k, v)
         return odf
 
     # OK, we now find the zero between abs min and an arbitrary high front
