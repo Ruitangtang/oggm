@@ -1837,14 +1837,16 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
     G = 9.8  # acceleration due to gravity in m/s^2
     RHO_ICE = 900.0  # ice density kg/m^3
     RHO_SEA = 1020.0  # seawater density kg/m^3
-    
+    water_level = model.water_level
+    print("water_level in the fa_sermeq_speed_law at the start is (m) :",water_level)
     if variable_yield is not None and not variable_yield:
         variable_yield = None
     print("variable_yield is ", variable_yield)
+    
 
     # ---------------------------------------------------------------------------
     # the yield strength
-    def tau_y(tau0=tau0, variable_yield=None, bed_elev=None, thick=None, mu=0.01):
+    def tau_y(tau0=1.3, variable_yield=None, bed_elev=None, thick=None, mu=0.01):
         """
         Functional form of yield strength.
         Can do constant or Mohr-Coulomb yield strength.  Ideally, the glacier's yield type
@@ -1871,10 +1873,11 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
         tau1=tau0*1e5
         if variable_yield is not None:
             try:
-                if bed_elev < 0:
-                    D = -1 * bed_elev  # Water depth D the nondim bed topography value when Z<0
-                else:
-                    D = 0
+                # if bed_elev < 0:
+                #     D = -1 * bed_elev  # Water depth D the nondim bed topography value when Z<0
+                # else:
+                #     D = 0
+                D = utils.clip_min(0,water_level - bed_elev)
             except:
                 print('You must set a bed elevation and ice thickness to use variable yield strength. Using constant yeild instead')
                 ty = tau1
@@ -1908,10 +1911,11 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
         Hy: float
             The ice thickness for stress balance at the terminus. [units]
         """
-        if bed_elev < 0:
-            D = -1 * bed_elev
-        else:
-            D = 0
+        # if bed_elev < 0:
+        #     D = -1 * bed_elev
+        # else:
+        #     D = 0
+        D = utils.clip_min(0,water_level - bed_elev)
         return (2 * yield_strength / (RHO_ICE * G)) + np.sqrt(
             (RHO_SEA * (D ** 2) / RHO_ICE) + ((2 * yield_strength / (RHO_ICE * G)) ** 2))
         # TODO: Check on exponent on last term.  In Ultee & Bassis 2016, this is squared, but in Ultee & Bassis 2020 supplement, it isn't.
@@ -1923,6 +1927,7 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
     surface_m = flowline.surface_h
     bed_m = flowline.bed_h
     width_m = flowline.widths_m
+    
     # u_stag[-1] is the main flowline
     velocity_m = model.u_stag[-1]*cfg.SEC_IN_YEAR
     print('velocity_m is', velocity_m)
@@ -1948,6 +1953,7 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
     profile=(x_m[:last_above_wl+1],
                  surface_m[:last_above_wl+1],
                  bed_m[:last_above_wl+1],width_m[:last_above_wl+1])
+    print("bed_h of the flowline using to do calving is :", bed_m[:last_above_wl+1])
     # model_velocity: array
     #     Velocity along the flowline [m/a] as calculated by the base model
     #     Should have values for the points nearest the terminus...otherwise
@@ -1973,9 +1979,11 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
         model_velocity = v_scaling * model_velocity
     else:
         print("please input the correct velocity datatype")
-    ## Ice thickness and yield thickness nearest the terminus
+    ## Ice thickness and yield thickness nearest the terminuss
     se_terminus = profile[1][last_index]
     bed_terminus = profile[2][last_index]
+    print("the surface at the terminus is (m a.s.l.) :",se_terminus)
+    print("the bed at the terminus is (m a.s.l.) :",bed_terminus)
     h_terminus = se_terminus - bed_terminus
     width_terminus = profile[3][last_index]
     tau_y_terminus = tau_y(tau0=tau0, bed_elev=bed_terminus, thick=h_terminus, variable_yield=variable_yield)
@@ -1991,6 +1999,8 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
     ## Ice thickness and yield thickness at adjacent point
     se_adj = profile[1][last_index - 1]
     bed_adj = profile[2][last_index - 1]
+    print("the surface at the grid backbefore the terminus (adj) (m a.s.l.) is :" ,se_adj)
+    print("the bed at the grid backbefore the terminus (adj) (m a.s.l.) is :" ,bed_adj)
     H_adj = se_adj - bed_adj
     tau_y_adj = tau_y(tau0=tau0, bed_elev=bed_adj, thick=H_adj, variable_yield=variable_yield)
     print('tau_y_adj in fa_sermeq_speed_law is:',tau_y_adj)
@@ -1998,8 +2008,14 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
     print('Hy_adj in fa_sermeq_speed_law is:',Hy_adj)
     # Gradients
     dx_term = profile[0][last_index] - profile[0][last_index - 1]  ## check grid spacing close to terminus
+    if dx_term <= 0.0 :
+        raise RuntimeError('DX_TERM IS LESS THEN ZERO')
     dHdx = (h_terminus - H_adj) / dx_term
+    # if dHdx >= 0.0 :
+    #     raise RuntimeError('DHDX_TERM IS LESS THEN ZERO')
     dHydx = (Hy_terminus - Hy_adj) / dx_term
+    # if dHydx <= 0.0 :
+    #     raise RuntimeError('DHYDX_TERM IS LESS THEN ZERO')
     if np.isnan(U_terminus) or np.isnan(U_adj):
         dUdx = np.nan  ## velocity gradient
         ## Group the terms
@@ -2018,6 +2034,10 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
         dLdt_numerator = terminus_mb - (h_terminus * dUdx) - (U_terminus * dHdx)
         dLdt_denominator = dHydx - dHdx  ## TODO: compute dHydx
         dLdt_viscoplastic = dLdt_numerator / dLdt_denominator
+        # if dLdt_denominator < 0:
+        #     raise RuntimeError('DHYDX-DHDX IS LESS THEN ZERO')
+        # elif dLdt_denominator == 0:
+        #     raise RuntimeError('DHYDX-DHDX IS ZERO')
         print('dLdt_numerator',dLdt_numerator)
         print('dLdt_denominator',dLdt_denominator)
         # fa_viscoplastic = dLdt_viscoplastic -U_terminus  ## frontal ablation rate
