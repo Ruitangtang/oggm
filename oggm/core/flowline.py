@@ -1996,6 +1996,8 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
     else:
         U_terminus = model_velocity[last_index]  ## velocity, assuming last point is terminus
         U_adj = model_velocity[last_index - 1]
+    print(f"the U terminus and adj are (m a-1): {U_terminus} and {U_adj}")
+
     ## Ice thickness and yield thickness at adjacent point
     se_adj = profile[1][last_index - 1]
     bed_adj = profile[2][last_index - 1]
@@ -2026,10 +2028,10 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
         fa_viscoplastic = np.nan  ## frontal ablation rate
     else:
         # Gradients
-        # dx_term = profile[0][last_index] - profile[0][last_index - 1]  ## check grid spacing close to terminus
+        # dx_term = profile[0][last_index] - profile[0][last_index - 1]  ## check grid spacing close to terminus 
         # dHdx = (h_terminus - H_adj) / dx_term
         # dHydx = (Hy_terminus - Hy_adj) / dx_term
-        dUdx = abs((U_terminus - U_adj) / dx_term)   ## velocity gradient
+        dUdx = (U_terminus - U_adj) / dx_term  ## velocity gradient
         ## Group the terms
         dLdt_numerator = terminus_mb - (h_terminus * dUdx) - (U_terminus * dHdx)
         dLdt_denominator = dHydx - dHdx  ## TODO: compute dHydx
@@ -2854,9 +2856,13 @@ class FluxBasedModel(FlowlineModel):
 
                 # Add to the bucket and the diagnostics
                 q_calving = self.calving_flux
-                fl.calving_bucket_m3 += q_calving * dt
-                self.calving_m3_since_y0 += q_calving * dt
-                self.calving_rate_myr += (q_calving / section[last_above_wl] *
+                # Remove ice below flotation beyond the first grid cell after the
+                # grounding line. That cell is the "advance" bucket, meaning it can
+                # contain ice below flotation.
+                add_calving = np.sum(section[last_above_wl+2:]) * dx
+                fl.calving_bucket_m3 += utils.clip_min(0, q_calving* dt - add_calving)
+                self.calving_m3_since_y0 += utils.clip_min(q_calving* dt , add_calving)
+                self.calving_rate_myr += (utils.clip_min(q_calving*dt, add_calving) / section[last_above_wl] /dt *
                                           cfg.SEC_IN_YEAR)
 
                 # See if we have ice below sea-water/flotation to clean out first
