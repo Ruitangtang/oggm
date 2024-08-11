@@ -771,7 +771,7 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
                 # dHdx = (h_terminus - H_adj) / dx_term
                 # dHydx = (Hy_terminus - Hy_adj) / dx_term
                                 # consider the dudx refers to the strain rate, here should be make sure dUdx is >=0
-                dUdx = abs((U_terminus - U_adj) / dx_term ) ## velocity gradient
+                dUdx = (U_terminus - U_adj) / dx_term  ## velocity gradient
                 ## Group the terms
                 dLdt_numerator = terminus_mb - (h_terminus* dUdx) - (U_terminus * dHdx)
                 dLdt_denominator = dHydx - dHdx  ## TODO: compute dHydx
