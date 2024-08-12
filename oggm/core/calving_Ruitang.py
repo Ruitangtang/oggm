@@ -406,10 +406,6 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
 
 
 
-
-
-
-
 class CalvingFluxBasedModelRt(FlowlineModel):
     """This is the version currently in progress.
 
@@ -603,8 +599,9 @@ class CalvingFluxBasedModelRt(FlowlineModel):
             self.flux_stag.append(np.zeros(nx+1))
             # Staggered water depth (constant)
             water_depth_stag = np.zeros(nx + 1)
-            water_depth_stag[1:-1] = (fl.water_depth[0:-1] + fl.water_depth[1:]) / 2.
-            water_depth_stag[[0, -1]] = fl.water_depth[[0, -1]]
+            depth = utils.clip_min(0,self.water_level - fl.bed_h)
+            water_depth_stag[1:-1] = (depth[0:-1] + depth[1:]) / 2.
+            water_depth_stag[[0, -1]] = depth[[0, -1]]
             self.water_depth_stag.append(water_depth_stag)
 
     def step(self, dt):
