@@ -635,7 +635,8 @@ class CalvingFluxBasedModelRt(FlowlineModel):
             thick = fl.thick
             section = fl.section
             dx = fl.dx_meter
-            water_depth = fl.water_depth
+            #water_depth = fl.water_depth
+            water_depth = utils.clip_min(0,self.water_level - fl.bed_h)
             calving_flux = 0.
 
             # If it is a tributary, we use the branch it flows into to compute
