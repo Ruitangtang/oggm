@@ -532,6 +532,15 @@ class CalvingFluxBasedModelRt(FlowlineModel):
             calving_k = cfg.PARAMS['calving_k']
         self.calving_k = calving_k / cfg.SEC_IN_YEAR
         self.calving_law = calving_law
+        if calving_limiter_frac is None:
+            calving_limiter_frac = cfg.PARAMS['calving_limiter_frac']
+        if variable_yield is None:
+            variable_yield = cfg.PARAMS['variable_yield']
+        self.variable_yield = variable_yield
+        if calving_limiter_frac > 0:
+            raise NotImplementedError('calving limiter other than 0 not '
+                                      'implemented yet')
+        self.calving_limiter_frac = calving_limiter_frac
         # Flux gate
         self.flux_gate = utils.tolist(flux_gate, length=len(self.fls))
         self.flux_gate_m3_since_y0 = 0.
@@ -665,7 +674,7 @@ class CalvingFluxBasedModelRt(FlowlineModel):
             # Staggered velocity
             # -> depends on calving
             if self.do_calving:
-                ice_in_water = fl.bed_below_wl & (fl.thick > 0)
+                ice_in_water = (fl.bed_h < self.water_level) & (fl.thick > 0)
             else:
                 ice_in_water = False
 
@@ -683,7 +692,7 @@ class CalvingFluxBasedModelRt(FlowlineModel):
                 eff_water_depth = (rho_ocean / self.rho) * water_depth
 
                 # above_wl -> above floatation
-                ice_above_wl = (fl.bed_below_wl & (fl.thick >= eff_water_depth))
+                ice_above_wl = ((fl.bed_h < self.water_level) & (fl.thick >= eff_water_depth))
 
                 if np.any(ice_above_wl):
                     last_above_wl = np.where(ice_above_wl)[0][-1]
