@@ -885,10 +885,10 @@ def mass_conservation_inversion(gdir, glen_a=None, fs=None, write=True,
     rho = cfg.PARAMS['ice_density']
     rho_o = cfg.PARAMS['ocean_density']
 
-    # if water_level is None:
-    #     water_level = 0
-    # print("water_level in the mass_conservation_inversion is :",water_level)
-    # Inversion with shape factors?s
+    if water_level is None:
+        water_level = 0
+    print("water_level in the mass_conservation_inversion is :",water_level)
+    # Inversion with shape factors?
     sf_func = None
     use_sf = cfg.PARAMS.get('use_shape_factor_for_inversion', None)
     if use_sf == 'Adhikari' or use_sf == 'Nye':
@@ -1814,20 +1814,27 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
     cl = gdir.read_pickle('inversion_output')[-1]
     log.workflow('({}) thickness, freeboard before water and frontal ablation:'
                  ' {}, {}'.format(gdir.rgi_id, cl['thick'][-1], cls['hgt'][-1]))
-    #thick0 = cl['thick'][-1]
+    thick0 = cl['thick'][-1]
     #th = cls['hgt'][-1]
     if water_level is None:
         th = cls['hgt'][-1] # cls['hgt'] is the surface elevation
         # For glaciers that are already relatively thick compared to the 
         # freeboard given by the DEM, it seems useful to start with a lower 
         # water level in order not to underestimate the initial thickness.
-        #water_level = -thick0/8 if thick0 > 8*th else 0
+        water_level = -thick0/4 if thick0 > 8*th else 0
         #print("water_level is now:,",water_level)
         if gdir.is_lake_terminating:
             water_level = th - cfg.PARAMS['free_board_lake_terminating']
-        else:
-            vmin, vmax = cfg.PARAMS['free_board_marine_terminating']
-            water_level = utils.clip_scalar(0, th - vmax, th - vmin)
+        # else:
+        #     #vmin, vmax = cfg.PARAMS['free_board_marine_terminating']
+        #     if th < (1-rho/rho_o)*thick0:
+        #         print ("Warning: The terminus of this glacier is floating")
+        #         water_level = th - (1-rho/rho_o)*thick0
+        #     elif th > 0.3*thick0:
+        #         water_level = th - 0.3*thick0
+        #     else:
+        #         water_level = 0            
+            #water_level = utils.clip_scalar(0, th - vmax, th - vmin)
     print("water level now is :",water_level)
     # The functions all have the same shape: they decrease, then increase
     # We seek the absolute minimum first
