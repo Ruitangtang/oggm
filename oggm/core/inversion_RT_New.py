@@ -417,7 +417,7 @@ def _vol_below_water(surface_h, bed_h, bed_shape, thick, widths,
 
 
 def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_wl=None, v_scaling=1, verbose=False,
-                     tau0=1.5, variable_yield='variable', mu=0.01,trim_profile=0,modelprms = None,glacier_rgi_table = None,
+                     tau0=1.5, variable_yield='variable', mu=0.01,trim_profile=1,modelprms = None,glacier_rgi_table = None,
                      hindcast = None, debug = None, debug_refreeze = None, option_areaconstant = None,
                      inversion_filter = None,water_depth = None):
     """
@@ -516,6 +516,8 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
     G = 9.8  # acceleration due to gravity in m/s^2
     RHO_ICE = 900.0  # ice density kg/m^3
     RHO_SEA = 1020.0  # seawater density kg/m^3
+    water_level = mb_model.water_level
+    print("water_level in the fa_sermeq_speed_law at the start is (m) :",water_level)
     print("variable_yield is ", variable_yield)
     if variable_yield is None and not variable_yield:
         variable_yield = None
@@ -553,13 +555,13 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
         if variable_yield is not None:
             if water_depth is None:
                 try:
-                    if bed_elev < 0:
-                        D = -1 * bed_elev  # Water depth D the nondim bed topography value when Z<0
-                    else:
-                        D = 0
+                    # if bed_elev < 0:
+                    #     D = -1 * bed_elev  # Water depth D the nondim bed topography value when Z<0
+                    # else:
+                    #     D = 0
+                    D = utils.clip_min(0,water_level - bed_elev)
                 except:
                     print('You must set a bed elevation and ice thickness to use variable yield strength. Using constant yeild instead')
-                    ty = tau1
             else:
                 D = water_depth
             N = RHO_ICE * G * thick - RHO_SEA * G * D  # Normal stress at bed
@@ -594,10 +596,11 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
             The ice thickness for stress balance at the terminus. [units m]
         """
         if water_depth is None:
-            if bed_elev < 0:
-                D = -1 * bed_elev
-            else:
-                D = 0
+            # if bed_elev < 0:
+            #     D = -1 * bed_elev
+            # else:
+            #     D = 0
+            D = utils.clip_min(0,water_level - bed_elev)
         else:
             D = water_depth
         return (2 * yield_strength / (RHO_ICE * G)) + np.sqrt(
@@ -776,11 +779,14 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
                 dLdt_numerator = terminus_mb - (h_terminus* dUdx) - (U_terminus * dHdx)
                 dLdt_denominator = dHydx - dHdx  ## TODO: compute dHydx
                 dLdt_viscoplastic = dLdt_numerator / dLdt_denominator
+                print('dLdt_numerator',dLdt_numerator)
+                print('dLdt_denominator',dLdt_denominator)
                 # fa_viscoplastic = dLdt_viscoplastic -U_terminus  ## frontal ablation rate
                 
                 # try:
                 U_calving = U_terminus - dLdt_viscoplastic  ## frontal ablation rate
                 fa_viscoplastic=U_calving
+
                 # if U_calving<0:
                 #     print("The glacier is advancing, and the advancing rate is larger than ice flow speed at the terminus, please check ")
                 #     if U_calving>0 or U_calving==0:
@@ -2036,7 +2042,7 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
         water_depth = utils.clip_min(1e-3, thick - f_b)
 
     out = calving_flux_from_depth(gdir, water_level=water_level,mb_model=mb_model,mb_years=mb_years,  k=calving_k,
-                                  water_depth=water_depth)
+                                  water_depth=water_depth,calving_law_inv=calving_law_inv)
     # Find volume with water and frontal ablation
     f_calving = out['flux']
 
