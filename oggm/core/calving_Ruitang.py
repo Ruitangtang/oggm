@@ -155,7 +155,7 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
 
     # ---------------------------------------------------------------------------
     # the yield strength
-    def tau_y(tau0=1.3, variable_yield=None, bed_elev=None, thick=None, mu=0.01):
+    def tau_y(tau0=1.5, variable_yield=None, bed_elev=None, thick=None, mu=0.01):
         """
         Functional form of yield strength.
         Can do constant or Mohr-Coulomb yield strength.  Ideally, the glacier's yield type
