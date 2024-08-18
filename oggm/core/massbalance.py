@@ -2061,7 +2061,7 @@ def apparent_mb_from_any_mb(gdir, mb_model=None,
                         'Inversion works but is physically quite '
                         'questionable.'.format(gdir.rgi_id))
             print('({}) a tributary has a strongly negative flux. Inversion works but is physically quite ,questionable.'.format(gdir.rgi_id))
-        print("fl_id is:",fl_id)
+        #print("fl_id is:",fl_id)
     # Check and write
     _check_terminus_mass_flux(gdir, fls)
     gdir.add_to_diagnostics('apparent_mb_from_any_mb_residual', residual)
