@@ -801,7 +801,7 @@ class CalvingFluxBasedModelRt(FlowlineModel):
                             # Transit the unit of tau0 to Pa, based on the equation self.calving_k= calving_k/cfg.SEC_IN_YEAR
                             # tau0 = self.calving_k * cfg.SEC_IN_YEAR
                             s_fa = self.calving_law(self, last_above_wl,v_scaling = 1, verbose = True,tau0 = k*cfg.SEC_IN_YEAR,
-                                                variable_yield=self.variable_yield, mu = 0.01,trim_profile = 0)
+                                                variable_yield=self.variable_yield, mu = 0.01,trim_profile = 1)
                             calving_flux = s_fa ['Sermeq_fa']*s_fa['Thickness_termi']*s_fa['Width_termi']/cfg.SEC_IN_YEAR
 
 
