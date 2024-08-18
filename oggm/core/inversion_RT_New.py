@@ -517,7 +517,7 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
     RHO_ICE = 900.0  # ice density kg/m^3
     RHO_SEA = 1020.0  # seawater density kg/m^3
     #water_level = mb_model.water_level
-    print("water_level in the fa_sermeq_speed_law at the start is (m) :",water_level)
+    print("water_level in the fa_sermeq_speed_law_inv at the start is (m) :",water_level)
     print("variable_yield is ", variable_yield)
     if variable_yield is None and not variable_yield:
         variable_yield = None
@@ -751,10 +751,10 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
             bed_adj = profile[2][last_index - 1]
             H_adj = se_adj - bed_adj
             #H_adj_T= h_terminus_T*H_adj/h_terminus # derived based on h_terminus_T
-            #water_depth_adj = water_depth*(se_adj-H_adj_T)/(se_terminus-h_terminus_T)
-
-            tau_y_adj = tau_y(tau0=tau0, bed_elev=bed_adj, thick=H_adj, variable_yield=variable_yield,water_depth=water_depth)
-            Hy_adj = balance_thickness(yield_strength=tau_y_adj, bed_elev=bed_adj,water_depth=water_depth)
+            water_depth_adj = water_depth+bed_terminus-bed_adj
+            
+            tau_y_adj = tau_y(tau0=tau0, bed_elev=bed_adj, thick=H_adj, variable_yield=variable_yield,water_depth=water_depth_adj)
+            Hy_adj = balance_thickness(yield_strength=tau_y_adj, bed_elev=bed_adj,water_depth=water_depth_adj)
             print('Hy_adj:',Hy_adj)
             # Gradients
             dx_term = profile[0][last_index] - profile[0][last_index - 1]  ## check grid spacing close to terminus
@@ -1684,7 +1684,7 @@ def calving_flux_from_depth(gdir, mb_model=None,mb_years=None,k=None, water_leve
         else:
             print('The terminus bed is already under the water level')        #TODO the k should be the updated k, or the defaulted k
         s_fa = fa_sermeq_speed_law_inv(gdir=gdir, mb_model=mb_model,mb_years=mb_years, last_above_wl=last_above_wl,v_scaling = 1, verbose = True,tau0 = k,
-                                    mu = 0.01,trim_profile = 0,modelprms = modelprms,glacier_rgi_table = glacier_rgi_table,hindcast = hindcast,
+                                    mu = 0.01,trim_profile = 1,modelprms = modelprms,glacier_rgi_table = glacier_rgi_table,hindcast = hindcast,
                                     debug = debug, debug_refreeze = debug_refreeze,option_areaconstant = option_areaconstant,
                                     inversion_filter = inversion_filter,water_depth = water_depth,water_level = water_level)
         
@@ -1826,20 +1826,20 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
         # For glaciers that are already relatively thick compared to the 
         # freeboard given by the DEM, it seems useful to start with a lower 
         # water level in order not to underestimate the initial thickness.
-        water_level = -thick0/4 if thick0 > 8*th else 0
+        #water_level = -thick0/4 if thick0 > 8*th else 0
         #print("water_level is now:,",water_level)
-        if gdir.is_lake_terminating:
-            water_level = th - cfg.PARAMS['free_board_lake_terminating']
         # else:
         #     #vmin, vmax = cfg.PARAMS['free_board_marine_terminating']
-        #     if th < (1-rho/rho_o)*thick0:
-        #         print ("Warning: The terminus of this glacier is floating")
-        #         water_level = th - (1-rho/rho_o)*thick0
-        #     elif th > 0.3*thick0:
-        #         print("Warning: The freeboard of the terminus of this glacier is more than 0.3*thick")
-        #         water_level = th - 0.3*thick0
-        #     else:
-        #         water_level = 0            
+        if th < (1-rho/rho_o)*thick0:
+            print ("Warning: The terminus of this glacier is floating")
+            water_level = th - (1-rho/rho_o)*thick0
+        elif th > 0.3*thick0:
+            print("Warning: The freeboard of the terminus of this glacier is more than 0.3*thick")
+            water_level = th - 0.3*thick0
+        else:
+            water_level = 0
+        if gdir.is_lake_terminating:
+            water_level = th - cfg.PARAMS['free_board_lake_terminating']            
             #water_level = utils.clip_scalar(0, th - vmax, th - vmin)
     print("water level now is :",water_level)
     # The functions all have the same shape: they decrease, then increase
@@ -2009,7 +2009,7 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
     # We take the smallest absolute water level. (Except for cases where we 
     # start with a negative water level; see above.)
     if success_p == 1 and np.abs(water_level_p) < np.abs(water_level_m) and not \
-       thick0 > 8*th:
+       thick0 > (rho_o/(rho_o-rho))*th:
         water_level = water_level_p
         opt = opt_p
     elif success_m == 1:
