@@ -1784,6 +1784,18 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
     calving_k = diag.get('optimized_k', cfg.PARAMS['inversion_calving_k'])
     rho = cfg.PARAMS['ice_density']
     rho_o = cfg.PARAMS['ocean_density'] # Ocean density, must be >= ice density
+
+
+    # Get the relevant variables
+    cls = gdir.read_pickle('inversion_input')[-1]
+    slope = cls['slope_angle'][-1]
+    width = cls['width'][-1]
+
+    # Stupidly enough the slope is clipped in the OGGM inversion, not
+    # in inversion prepro - clip here
+    min_slope = 'min_slope_ice_caps' if gdir.is_icecap else 'min_slope'
+    min_slope = np.deg2rad(cfg.PARAMS[min_slope])
+    slope = utils.clip_array(slope, min_slope, np.pi / 2.)
     # Let's start from a fresh state
     gdir.inversion_calving_rate = 0
     with utils.DisableLogger():
@@ -1804,17 +1816,7 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
     # Store for statistics
     gdir.add_to_diagnostics('volume_before_calving', v_ref)
     print("volume before calving is:", v_ref)
-    # Get the relevant variables
-    cls = gdir.read_pickle('inversion_input')[-1]
-    slope = cls['slope_angle'][-1]
-    width = cls['width'][-1]
 
-    # Stupidly enough the slope is clipped in the OGGM inversion, not
-    # in inversion prepro - clip here
-    min_slope = 'min_slope_ice_caps' if gdir.is_icecap else 'min_slope'
-    min_slope = np.deg2rad(cfg.PARAMS[min_slope])
-    slope = utils.clip_array(slope, min_slope, np.pi / 2.)
-    
     # Check that water level is within given bounds
     print("water level is :",water_level)
     cl = gdir.read_pickle('inversion_output')[-1]
@@ -1833,9 +1835,9 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
         if th < (1-rho/rho_o)*thick0:
             print ("Warning: The terminus of this glacier is floating")
             water_level = th - (1-rho/rho_o)*thick0
-        elif th > 0.3*thick0:
-            print("Warning: The freeboard of the terminus of this glacier is more than 0.3*thick")
-            water_level = th - 0.3*thick0
+        # elif th > 0.5*thick0:
+        #     print("Warning: The freeboard of the terminus of this glacier is more than 0.5*thick")
+        #     water_level = th - 0.5*thick0
         else:
             water_level = 0
         if gdir.is_lake_terminating:
@@ -1919,7 +1921,7 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
 
     # abs_min = optimize.minimize(to_minimize, [1], bounds=((1e-4, 1e4), ),
     #                             tol=1e-1)
-    abs_min = optimize.minimize(to_minimize, [1.01], bounds=((1e-4, 1e4), ),
+    abs_min = optimize.minimize(to_minimize, [1.01], bounds=((1.01, 1e4), ),
                                 tol=1e-1)
     print("abs_min is :",abs_min)
 
