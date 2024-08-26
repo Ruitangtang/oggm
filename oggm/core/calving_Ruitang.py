@@ -941,14 +941,19 @@ class CalvingFluxBasedModelRt(FlowlineModel):
                 continue
 
             # We do calving only if there is some ice above wl
-            depth = utils.clip_min(0,self.water_level - fl.bed_h)
-            ice_above_wl = ((fl.surface_h > self.water_level) &
-                            (fl.bed_h < self.water_level) &
-                            (fl.thick >= (self.rho_o / self.rho) * depth))
-            if np.any(ice_above_wl):
-                last_above_wl = np.where(ice_above_wl)[0][-1]
-                last_above_wl = int(utils.clip_max(last_above_wl, 
-                                                   len(fl.bed_h)-2))
+            # depth = utils.clip_min(0,self.water_level - fl.bed_h)
+            # ice_above_wl = ((fl.surface_h > self.water_level) &
+            #                 (fl.bed_h < self.water_level) &
+            #                 (fl.thick >= (self.rho_o / self.rho) * depth))
+            # if np.any(ice_above_wl):
+            #     last_above_wl = np.where(ice_above_wl)[0][-1]
+            #     last_above_wl = int(utils.clip_max(last_above_wl, 
+            #                                        len(fl.bed_h)-2))
+            last_above_wl = np.nonzero((fl.surface_h > self.water_level) &
+                                       (fl.thick > 0))[0][-1]
+            print("last_above_wl in step is :",last_above_wl)
+            if fl.bed_h[last_above_wl] > self.water_level:
+                continue
             # OK, we're really calving
             section = fl.section
 
