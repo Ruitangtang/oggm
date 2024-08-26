@@ -41,7 +41,7 @@ def initialize_calving_params():
     # for lake-terminating glaciers this could be changed to
     # 1000 kg m-3
     if 'ocean_density' not in cfg.PARAMS:
-        cfg.PARAMS['ocean_density'] = 1028
+        cfg.PARAMS['ocean_density'] = 1020
 
     # Stretch distance in hydrostatic pressure balance
     # calculations for terminal water-terminating cliffs
@@ -259,6 +259,7 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
     # profile: NDarray
     #     The current profile (x, surface, bed,width) as calculated by the base model
     #     Unlike core SERMeQ, these should be DIMENSIONAL [m].
+    print("The last above wl is (In fa_sermeq_speed_law) :",last_above_wl)
     profile=(x_m[:last_above_wl+1],
                  surface_m[:last_above_wl+1],
                  bed_m[:last_above_wl+1],width_m[:last_above_wl+1])
@@ -271,6 +272,7 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
     model_velocity=velocity_m[:last_above_wl+1]
     # remove lowest cells if needed
     last_index = -1 * (trim_profile + 1)
+    print("last_index is :",last_index)
     ## TODO: Check the flowline model, the decrease the distance between two adjacent points along the flowline, and then calculate the averaged gradient for dhdx,dhydx,dudx
     ##
     if isinstance(Terminus_mb, (int, float)):
