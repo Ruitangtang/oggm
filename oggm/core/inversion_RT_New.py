@@ -701,6 +701,7 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
             # profile: NDarray
             #     The current profile (x, surface, bed,width) as calculated by the base model
             #     Unlike core SERMeQ, these should be DIMENSIONAL [m].
+            print("The last above wl is (In fa_sermeq_speed_law) :",last_above_wl)
             profile=(x_m[:last_above_wl+1],
                         surface_m[:last_above_wl+1],
                         bed_m[:last_above_wl+1],width_m[:last_above_wl+1])
@@ -713,6 +714,7 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
             # remove lowest cells if needed
             print("trim_profile is :",trim_profile)
             last_index = -1 * (trim_profile + 1)
+            print("the last index is :", last_index)
             ## TODO: Check the flowline model, the decrease the distance between two adjacent points along the flowline, and then calculate the averaged gradient for dhdx,dhydx,dudx
             ##
             if isinstance(Terminus_mb, (int, float)):
@@ -1837,9 +1839,9 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
         if th < (1-rho/rho_o)*thick0:
             print ("Warning: The terminus of this glacier is floating")
             water_level = th - (1-rho/rho_o)*thick0
-        # elif th > 0.5*thick0:
-        #     print("Warning: The freeboard of the terminus of this glacier is more than 0.5*thick")
-        #     water_level = th - 0.5*thick0
+        elif th > 0.3*thick0:
+            print("Warning: The freeboard of the terminus of this glacier is more than 0.5*thick")
+            water_level = th - 0.3*thick0
         else:
             water_level = 0
         if gdir.is_lake_terminating:
