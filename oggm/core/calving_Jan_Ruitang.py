@@ -411,7 +411,7 @@ class CalvingFluxBasedModelJanRt(FlowlineModel):
     def __init__(self, flowlines, mb_model=None, y0=0., glen_a=None,
                  fs=0., inplace=False, fixed_dt=None, cfl_number=None,
                  min_dt=None, flux_gate_thickness=None,calving_law =fa_sermeq_speed_law,
-                 flux_gate=None, flux_gate_build_up=100,
+                 flux_gate=None, flux_gate_build_up=100,variable_yield=None,
                  do_kcalving=None, calving_k=None,mb_elev_feedback='monthly',
                  water_level=None, **kwargs):
         """Instantiate the model.
@@ -528,6 +528,9 @@ class CalvingFluxBasedModelJanRt(FlowlineModel):
         if do_kcalving:
             self.calving_k = calving_k / cfg.SEC_IN_YEAR
         self.calving_law = calving_law
+        if variable_yield is None:
+            variable_yield = cfg.PARAMS['variable_yield']
+        self.variable_yield = variable_yield
 
         self.ovars = cfg.PARAMS['store_diagnostic_variables']
 
