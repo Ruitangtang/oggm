@@ -434,6 +434,12 @@ class CalvingFluxBasedModelJanRt(FlowlineModel):
             time by the model (can help to spare memory)
         fixed_dt : float
             set to a value (in seconds) to prevent adaptive time-stepping.
+        calving_law : func
+             option to use another calving law. This is a temporary workaround
+             to test other calving laws, and the system might be improved in
+             future OGGM versions.
+             1. k-calving law
+             2. fa_sermq_speed_law
         cfl_number : float
             Defaults to cfg.PARAMS['cfl_number'].
             For adaptive time stepping (the default), dt is chosen from the
@@ -491,7 +497,7 @@ class CalvingFluxBasedModelJanRt(FlowlineModel):
         """
         super(CalvingFluxBasedModelJanRt, self).__init__(flowlines, mb_model=mb_model,
                                                        y0=y0, glen_a=glen_a, fs=fs,
-                                                       inplace=inplace,calving_law =calving_law,
+                                                       inplace=inplace,
                                                        water_level=water_level,mb_elev_feedback=mb_elev_feedback,
                                                         **kwargs)
 
@@ -521,6 +527,7 @@ class CalvingFluxBasedModelJanRt(FlowlineModel):
             calving_k = cfg.PARAMS['calving_k']
         if do_kcalving:
             self.calving_k = calving_k / cfg.SEC_IN_YEAR
+        self.calving_law = calving_law
 
         self.ovars = cfg.PARAMS['store_diagnostic_variables']
 
