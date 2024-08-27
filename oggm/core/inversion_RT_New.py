@@ -701,7 +701,7 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
             # profile: NDarray
             #     The current profile (x, surface, bed,width) as calculated by the base model
             #     Unlike core SERMeQ, these should be DIMENSIONAL [m].
-            print("The last above wl is (In fa_sermeq_speed_law) :",last_above_wl)
+            print("The last above wl is (In fa_sermeq_speed_law_inv) :",last_above_wl)
             profile=(x_m[:last_above_wl+1],
                         surface_m[:last_above_wl+1],
                         bed_m[:last_above_wl+1],width_m[:last_above_wl+1])
@@ -1840,7 +1840,7 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
             print ("Warning: The terminus of this glacier is floating")
             water_level = th - (1-rho/rho_o)*thick0
         elif th > 0.3*thick0:
-            print("Warning: The freeboard of the terminus of this glacier is more than 0.5*thick")
+            print("Warning: The freeboard of the terminus of this glacier is more than 0.3*thick")
             water_level = th - 0.3*thick0
         else:
             water_level = 0
