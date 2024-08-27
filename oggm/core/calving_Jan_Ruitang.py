@@ -491,7 +491,7 @@ class CalvingFluxBasedModelJanRt(FlowlineModel):
         """
         super(CalvingFluxBasedModelJanRt, self).__init__(flowlines, mb_model=mb_model,
                                                        y0=y0, glen_a=glen_a, fs=fs,
-                                                       inplace=inplace,
+                                                       inplace=inplace,calving_law =calving_law,
                                                        water_level=water_level,mb_elev_feedback=mb_elev_feedback,
                                                         **kwargs)
 
