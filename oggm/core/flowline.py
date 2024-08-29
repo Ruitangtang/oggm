@@ -1013,7 +1013,7 @@ class FlowlineModel(object):
 
     def run_until_and_store(self, y1,
                             diag_path=None,
-                            fl_diag_path=False,
+                            fl_diag_path=None,
                             geom_path=False,
                             store_monthly_step='monthly',
                             stop_criterion=None,
