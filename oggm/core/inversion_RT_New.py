@@ -1839,9 +1839,9 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
         if th < (1-rho/rho_o)*thick0:
             print ("Warning: The terminus of this glacier is floating")
             water_level = th - (1-rho/rho_o)*thick0
-        elif th > 0.3*thick0:
-            print("Warning: The freeboard of the terminus of this glacier is more than 0.3*thick")
-            water_level = th - 0.3*thick0
+        # elif th > 0.3*thick0:
+        #     print("Warning: The freeboard of the terminus of this glacier is more than 0.3*thick")
+        #     water_level = th - 0.3*thick0
         else:
             water_level = 0
         if gdir.is_lake_terminating:
@@ -2027,7 +2027,7 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
 
     # Give the flux to the inversion and recompute
     # This is the thick guaranteeing OGGM Flux = Calving Law Flux
-    print("opt is (water_depth m):",opt)
+    print("opt is:",opt)
     if opt is not None:
         rel_h = opt
         f_b = th - water_level
