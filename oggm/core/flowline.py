@@ -886,23 +886,32 @@ class FlowlineModel(object):
             # ignore month changes
             date = (date[0], date[0])
 
-        if self._mb_current_date == date:
-            if fl_id not in self._mb_current_out:
-                # We need to reset just this tributary
+        try:     
+
+            if self._mb_current_date == date:
+                print("date hear is :",date)
+                if fl_id not in self._mb_current_out:
+                    # We need to reset just this tributary
+                    self._mb_current_out[fl_id] = self._mb_call(heights,
+                                                                year=year,
+                                                                fl_id=fl_id,
+                                                                fls=fls)
+            else:
+                # We need to reset all
+                print("we need to reset all")
+                self._mb_current_date = date
+                self._mb_current_out = dict()
                 self._mb_current_out[fl_id] = self._mb_call(heights,
                                                             year=year,
                                                             fl_id=fl_id,
                                                             fls=fls)
-        else:
-            # We need to reset all
-            self._mb_current_date = date
-            self._mb_current_out = dict()
-            self._mb_current_out[fl_id] = self._mb_call(heights,
-                                                        year=year,
-                                                        fl_id=fl_id,
-                                                        fls=fls)
+        except:
+            print("something in get_mb is wrong")
+            print(traceback.format_exc())
 
         return self._mb_current_out[fl_id]
+
+
 
     def to_geometry_netcdf(self, path):
         """Creates a netcdf group file storing the state of the model."""
@@ -1013,7 +1022,7 @@ class FlowlineModel(object):
 
     def run_until_and_store(self, y1,
                             diag_path=None,
-                            fl_diag_path=None,
+                            fl_diag_path=True,
                             geom_path=False,
                             store_monthly_step='monthly',
                             stop_criterion=None,
@@ -1306,6 +1315,7 @@ class FlowlineModel(object):
 
         fl_diag_dss = None
         if do_fl_diag:
+            print("do_fl_diag: time invariant datasets:",do_fl_diag)
             # Time invariant datasets
             fl_diag_dss = [fl.to_diagnostics_dataset() for fl in self.fls]
 
@@ -1662,6 +1672,7 @@ class FlowlineModel(object):
 
             # Write out?
             if fl_diag_path not in [True, None]:
+                print("fl_diag_path in run_until_and_store is :",fl_diag_path)
                 encode = {}
                 for v in fl_diag_dss[0]:
                     encode[v] = {'zlib': True, 'complevel': 5}
@@ -4287,6 +4298,7 @@ def flowline_model_run(gdir, output_filesuffix=None, mb_model=None,
         fl_diag_path = gdir.get_filepath('fl_diagnostics',
                                          filesuffix=output_filesuffix,
                                          delete=True)
+        print("fl_diag_path is (flowline_model_run):",fl_diag_path)
     else:
         fl_diag_path = False
 
