@@ -886,28 +886,37 @@ class FlowlineModel(object):
             # ignore month changes
             date = (date[0], date[0])
 
-        try:     
-
-            if self._mb_current_date == date:
-                print("date hear is :",date)
-                if fl_id not in self._mb_current_out:
-                    # We need to reset just this tributary
+        print("date hear is :",date)
+        print ("self._mb_current_date :",self._mb_current_date)
+        if self._mb_current_date == date:
+            print("self._mb_current_date == date")
+            print ("fl_id is :",fl_id)
+            print("self._mb_current_out is :",self._mb_current_out)
+            if fl_id not in self._mb_current_out:
+                # We need to reset just this tributary
+                try :
                     self._mb_current_out[fl_id] = self._mb_call(heights,
                                                                 year=year,
                                                                 fl_id=fl_id,
                                                                 fls=fls)
-            else:
-                # We need to reset all
-                print("we need to reset all")
-                self._mb_current_date = date
-                self._mb_current_out = dict()
+                except:
+                    print("something in self._mb_call is wrong")
+                    print(traceback.format_exc())
+        else:
+            # We need to reset all
+            print("we need to reset all")
+            self._mb_current_date = date
+            self._mb_current_out = dict()
+            print("heights is :", heights,"year is :",year,"fl_id is :",fl_id,"fls is :",fls)
+            try:
                 self._mb_current_out[fl_id] = self._mb_call(heights,
                                                             year=year,
                                                             fl_id=fl_id,
                                                             fls=fls)
-        except:
-            print("something in get_mb is wrong")
-            print(traceback.format_exc())
+            except:
+                print("something in self._mb_call is wrong")
+                print(traceback.format_exc())
+
 
         return self._mb_current_out[fl_id]
 
