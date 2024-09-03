@@ -1527,9 +1527,14 @@ class FlowlineModel(object):
                         if 'climatic_mb' in ovars_fl and (yr > self.y0):
                             # yr - 1 to use the mb which lead to the current
                             # state, also using previous surface height
-                            val = self.get_mb(surface_h_previous[fl_id],
-                                              self.yr - 1,
-                                              fl_id=fl_id)
+                            if store_monthly_step == 'monthly':
+                                val = self.get_mb(surface_h_previous[fl_id],
+                                                self.yr - 1/12,
+                                                fl_id=fl_id)
+                            else:
+                                val = self.get_mb(fl.surface_h,
+                                                self.yr - 1,
+                                                fl_id=fl_id)
                             # only save climatic mb where dhdt is non zero,
                             # isclose for avoiding numeric represention artefacts
                             dhdt_zero = np.isclose(ds['dhdt_myr'].data[j, :],
