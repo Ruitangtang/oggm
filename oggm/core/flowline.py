@@ -1672,40 +1672,44 @@ class FlowlineModel(object):
 
         # write output?
         if do_fl_diag:
-            print("write output")
-            # Unit conversions for these
-            for i, ds in enumerate(fl_diag_dss):
-                dx = ds.attrs['map_dx'] * ds.attrs['dx']
-                # No inplace because the other dataset uses them
-                # These variables are always there (see above)
-                ds['volume_m3'] = ds['volume_m3'] * dx
-                ds['area_m2'] = ds['area_m2'].where(ds['volume_m3'] > 0, 0) * dx
-                if stop_criterion is not None:
-                    # Remove probable NaNs
-                    fl_diag_dss[i] = ds.dropna('time', subset=['volume_m3'])
-
-            # Write out?
-            if fl_diag_path not in [True, None]:
-                print("fl_diag_path in run_until_and_store is :",fl_diag_path)
-                encode = {}
-                for v in fl_diag_dss[0]:
-                    encode[v] = {'zlib': True, 'complevel': 5}
-
-                # Welcome ds
-                ds = xr.Dataset()
-                ds.attrs['description'] = ('OGGM model output on flowlines. '
-                                           'Check groups for data.')
-                ds.attrs['oggm_version'] = __version__
-                # This is useful to interpret the dataset afterwards
-                flows_to_id = []
-                for trib in self._tributary_indices:
-                    flows_to_id.append(trib[0] if trib[0] is not None else -1)
-                ds['flowlines'] = ('flowlines', np.arange(len(flows_to_id)))
-                ds['flows_to_id'] = ('flowlines', flows_to_id)
-                ds.to_netcdf(fl_diag_path, 'w')
+            try: 
+                print("write output")
+                # Unit conversions for these
                 for i, ds in enumerate(fl_diag_dss):
-                    ds.to_netcdf(fl_diag_path, 'a', group='fl_{}'.format(i),
-                                 encoding=encode)
+                    dx = ds.attrs['map_dx'] * ds.attrs['dx']
+                    # No inplace because the other dataset uses them
+                    # These variables are always there (see above)
+                    ds['volume_m3'] = ds['volume_m3'] * dx
+                    ds['area_m2'] = ds['area_m2'].where(ds['volume_m3'] > 0, 0) * dx
+                    if stop_criterion is not None:
+                        # Remove probable NaNs
+                        fl_diag_dss[i] = ds.dropna('time', subset=['volume_m3'])
+
+                # Write out?
+                if fl_diag_path not in [True, None]:
+                    print("fl_diag_path in run_until_and_store is :",fl_diag_path)
+                    encode = {}
+                    for v in fl_diag_dss[0]:
+                        encode[v] = {'zlib': True, 'complevel': 5}
+
+                    # Welcome ds
+                    ds = xr.Dataset()
+                    ds.attrs['description'] = ('OGGM model output on flowlines. '
+                                            'Check groups for data.')
+                    ds.attrs['oggm_version'] = __version__
+                    # This is useful to interpret the dataset afterwards
+                    flows_to_id = []
+                    for trib in self._tributary_indices:
+                        flows_to_id.append(trib[0] if trib[0] is not None else -1)
+                    ds['flowlines'] = ('flowlines', np.arange(len(flows_to_id)))
+                    ds['flows_to_id'] = ('flowlines', flows_to_id)
+                    ds.to_netcdf(fl_diag_path, 'w')
+                    for i, ds in enumerate(fl_diag_dss):
+                        ds.to_netcdf(fl_diag_path, 'a', group='fl_{}'.format(i),
+                                    encoding=encode)
+            except:
+                print("Error in writing the output")
+                print(traceback.format_exc())
 
         if do_geom and geom_path not in [True, None]:
             encode = {'ts_section': {'zlib': True, 'complevel': 5},
