@@ -1870,8 +1870,9 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
         f_b = th - water_level
         thick = ((rho_o/rho)*rel_h*f_b) / ((rho_o/rho) * rel_h - rel_h + 1)
         water_depth = utils.clip_min(1e-3, thick - f_b)
+        water_level = th - (thick0-water_depth)
         fl = calving_flux_from_depth(gdir, mb_model=mb_model,mb_years=mb_years,k= calving_k,
-                                     water_level=water_level,water_depth=water_depth,
+                                     water_level=water_level,
                                      calving_law_inv =  fa_sermeq_speed_law_inv, modelprms = modelprms,
                                      glacier_rgi_table = glacier_rgi_table,hindcast = hindcast,
                                      debug = debug, debug_refreeze = debug_refreeze,
@@ -2036,6 +2037,7 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
         print("thick is:",thick)
         water_depth = utils.clip_min(1e-3, thick - f_b)
         print("water_depth is:",water_depth)
+        water_level= th - (thick0-water_depth)
     else:
         # Mostly happening when front becomes very thin...
         log.workflow('({}) inversion routine not working as expected. We just '
@@ -2046,9 +2048,10 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
         rel_h = opt
         thick = ((rho_o/rho)*rel_h*f_b) / ((rho_o/rho) * rel_h - rel_h + 1)    
         water_depth = utils.clip_min(1e-3, thick - f_b)
+        water_level= th - (thick0-water_depth)
 
     out = calving_flux_from_depth(gdir, water_level=water_level,mb_model=mb_model,mb_years=mb_years,  k=calving_k,
-                                  water_depth=water_depth,calving_law_inv=calving_law_inv)
+                                  calving_law_inv=calving_law_inv)
     # Find volume with water and frontal ablation
     f_calving = out['flux']
 
