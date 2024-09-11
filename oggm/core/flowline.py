@@ -1174,7 +1174,7 @@ class FlowlineModel(object):
             if store_monthly_step:
                 sects = [(np.zeros((nm, fl.nx)) * np.NaN) for fl in self.fls]
                 widths = [(np.zeros((nm, fl.nx)) * np.NaN) for fl in self.fls]
-                buckets = [np.zeros(NotImplementedError) for _ in self.fls]
+                buckets = [np.zeros(nm) for _ in self.fls]
             else:
                 sects = [(np.zeros((ny, fl.nx)) * np.NaN) for fl in self.fls]
                 widths = [(np.zeros((ny, fl.nx)) * np.NaN) for fl in self.fls]
