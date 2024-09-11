@@ -1171,9 +1171,14 @@ class FlowlineModel(object):
         nm = len(monthly_time)
         print("nm is :",nm)
         if do_geom or do_fl_diag:
-            sects = [(np.zeros((ny, fl.nx)) * np.NaN) for fl in self.fls]
-            widths = [(np.zeros((ny, fl.nx)) * np.NaN) for fl in self.fls]
-            buckets = [np.zeros(ny) for _ in self.fls]
+            if store_monthly_step:
+                sects = [(np.zeros((nm, fl.nx)) * np.NaN) for fl in self.fls]
+                widths = [(np.zeros((nm, fl.nx)) * np.NaN) for fl in self.fls]
+                buckets = [np.zeros(NotImplementedError) for _ in self.fls]
+            else:
+                sects = [(np.zeros((ny, fl.nx)) * np.NaN) for fl in self.fls]
+                widths = [(np.zeros((ny, fl.nx)) * np.NaN) for fl in self.fls]
+                buckets = [np.zeros(ny) for _ in self.fls]
 
         # Diagnostics dataset
         diag_ds = xr.Dataset()
