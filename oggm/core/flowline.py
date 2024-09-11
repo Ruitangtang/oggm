@@ -1544,7 +1544,7 @@ class FlowlineModel(object):
                         if 'climatic_mb' in ovars_fl and (yr > self.y0):
                             # yr - 1 to use the mb which lead to the current
                             # state, also using previous surface height
-                            if store_monthly_step == 'monthly':
+                            if store_monthly_step:
                                 val = self.get_mb(surface_h_previous[fl_id],
                                                 self.yr - 1/12,
                                                 fl_id=fl_id)
