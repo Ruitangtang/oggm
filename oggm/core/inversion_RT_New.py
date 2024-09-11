@@ -738,9 +738,9 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
             h_terminus = se_terminus - bed_terminus
             #h_terminus_T = thick_T # the thickness revised based on water depth and free_board
             width_terminus = profile[3][last_index]
-            tau_y_terminus = tau_y(tau0=tau0, bed_elev=bed_terminus, thick=h_terminus, variable_yield=variable_yield,water_depth=water_depth)
+            tau_y_terminus = tau_y(tau0=tau0, bed_elev=bed_terminus, thick=h_terminus, variable_yield=variable_yield)
             print('tau_y_terminus (Pa) is :',tau_y_terminus)
-            Hy_terminus = balance_thickness(yield_strength=tau_y_terminus, bed_elev=bed_terminus,water_depth=water_depth)
+            Hy_terminus = balance_thickness(yield_strength=tau_y_terminus, bed_elev=bed_terminus)
             print('Hy_terminus:',Hy_terminus)
             if isinstance(model_velocity, (int, float)):
                 U_terminus = model_velocity
@@ -753,10 +753,10 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
             bed_adj = profile[2][last_index - 1]
             H_adj = se_adj - bed_adj
             #H_adj_T= h_terminus_T*H_adj/h_terminus # derived based on h_terminus_T
-            water_depth_adj = water_depth+bed_terminus-bed_adj
+            #water_depth_adj = water_depth+bed_terminus-bed_adj
             
-            tau_y_adj = tau_y(tau0=tau0, bed_elev=bed_adj, thick=H_adj, variable_yield=variable_yield,water_depth=water_depth_adj)
-            Hy_adj = balance_thickness(yield_strength=tau_y_adj, bed_elev=bed_adj,water_depth=water_depth_adj)
+            tau_y_adj = tau_y(tau0=tau0, bed_elev=bed_adj, thick=H_adj, variable_yield=variable_yield)
+            Hy_adj = balance_thickness(yield_strength=tau_y_adj, bed_elev=bed_adj)
             print('Hy_adj:',Hy_adj)
             # Gradients
             dx_term = profile[0][last_index] - profile[0][last_index - 1]  ## check grid spacing close to terminus
@@ -1697,7 +1697,7 @@ def calving_flux_from_depth(gdir, mb_model=None,mb_years=None,k=None, water_leve
         flux = k * thick * water_depth * width / 1e9  
         flux_k_calving = k * thick * water_depth * width / 1e9 
     print("the flux is (km3 a-1);",flux,"based on the calving law is:",
-          calving_law_inv,"flux in k_clving (km3 a-1) is :",flux_k_calving)
+          calving_law_inv," ; flux in k_clving (km3 a-1) is :",flux_k_calving)
     
 
 
@@ -1865,14 +1865,14 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
     #     sia_thick = sia_thickness(slope, width, flux, glen_a=glen_a, fs=fs)
     #     print("flux in to_minimize is (m3 s-1) :",flux)
     #     print("sia_thick in to_minimize is :",sia_thick)
-    #     return fl['thick'] - sia_thick
+    #     return fl['thick'] - sia_thick #
+
     def to_minimize(rel_h):
         f_b = th - water_level
         thick = ((rho_o/rho)*rel_h*f_b) / ((rho_o/rho) * rel_h - rel_h + 1)
         water_depth = utils.clip_min(1e-3, thick - f_b)
-        water_level = th - (thick0-water_depth)
         fl = calving_flux_from_depth(gdir, mb_model=mb_model,mb_years=mb_years,k= calving_k,
-                                     water_level=water_level,
+                                     water_level=water_level, water_depth=water_depth,
                                      calving_law_inv =  fa_sermeq_speed_law_inv, modelprms = modelprms,
                                      glacier_rgi_table = glacier_rgi_table,hindcast = hindcast,
                                      debug = debug, debug_refreeze = debug_refreeze,
@@ -1976,6 +1976,7 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
     min_wl = -th if th > thick0 else -thick0
     max_wl = th - 1e-3
     success = 0
+    water_level_original = water_level
     step = cfg.PARAMS['water_level_step']
     opt_p = None
     opt_m = None
@@ -1995,7 +1996,7 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
     water_level_m = water_level
     success_m = success
  
-    water_level = 0
+    water_level = water_level_original
     success = 0
     while abs_min['fun'] > 0 or success == 0:
         abs_min = optimize.minimize(to_minimize, [1.01], bounds=((1.01, 1e7), ),
@@ -2037,7 +2038,6 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
         print("thick is:",thick)
         water_depth = utils.clip_min(1e-3, thick - f_b)
         print("water_depth is:",water_depth)
-        water_level= th - (thick0-water_depth)
     else:
         # Mostly happening when front becomes very thin...
         log.workflow('({}) inversion routine not working as expected. We just '
@@ -2050,7 +2050,7 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
         water_depth = utils.clip_min(1e-3, thick - f_b)
         water_level= th - (thick0-water_depth)
 
-    out = calving_flux_from_depth(gdir, water_level=water_level,mb_model=mb_model,mb_years=mb_years,  k=calving_k,
+    out = calving_flux_from_depth(gdir, water_level=water_level,water_depth= water_depth,mb_model=mb_model,mb_years=mb_years,  k=calving_k,
                                   calving_law_inv=calving_law_inv)
     # Find volume with water and frontal ablation
     f_calving = out['flux']
@@ -2066,7 +2066,7 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
         mass_conservation_inversion(gdir, water_level=water_level,
                                     glen_a=glen_a, fs=fs, min_rel_h=opt)
 
-    out = calving_flux_from_depth(gdir, water_level=water_level, k=calving_k,
+    out = calving_flux_from_depth(gdir, water_level=water_level,water_depth=water_depth, k=calving_k,
                                   mb_model=mb_model,mb_years=mb_years,
                                   calving_law_inv=calving_law_inv)
 
