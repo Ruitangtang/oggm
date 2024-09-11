@@ -1033,7 +1033,7 @@ class FlowlineModel(object):
                             diag_path=None,
                             fl_diag_path=True,
                             geom_path=False,
-                            store_monthly_step='monthly',
+                            store_monthly_step= True,
                             stop_criterion=None,
                             fixed_geometry_spinup_yr=None,
                             dynamic_spinup_min_ice_thick=None,
@@ -1347,8 +1347,12 @@ class FlowlineModel(object):
                         ds.attrs['mb_model_{}'.format(k)] = v
 
                 # Coordinates
-                ds.coords['time'] = yearly_time
-                ds['time'].attrs['description'] = 'Floating hydrological year'
+                if store_monthly_step:
+                    ds.coords['time'] = monthly_time
+                    ds['time'].attrs['description'] = 'Floating hydrological month'
+                else:
+                    ds.coords['time'] = yearly_time
+                    ds['time'].attrs['description'] = 'Floating hydrological year'
 
             # Variables and attributes
             ovars_fl = cfg.PARAMS['store_fl_diagnostic_variables']
@@ -1483,7 +1487,15 @@ class FlowlineModel(object):
                 self.run_until(yr)
                 print("runned for the year :",yr)
             # Glacier geometry
-            if (do_geom or do_fl_diag) and mo == 1:
+            # We store the geometry at the beginning of each hydrological year/month
+            if store_monthly_step:
+                # store for each monthly step
+                Store_Month= do_geom or do_fl_diag
+            else:
+                # store for each year, i.e. the first month of the year
+                Store_Month= do_geom or do_fl_diag and mo == 1
+#            if (do_geom or do_fl_diag) and mo == 1:
+            if Store_Month:
                 for s, w, b, fl in zip(sects, widths, buckets, self.fls):
                     s[j, :] = fl.section
                     w[j, :] = fl.widths_m
