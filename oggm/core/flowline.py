@@ -13,6 +13,10 @@ import shutil
 import warnings
 import traceback
 import sys
+from decimal import Decimal, getcontext
+import math
+# Set the precision for Decimal operations
+getcontext().prec = 28
 
 # External libs
 import numpy as np
@@ -921,6 +925,71 @@ class FlowlineModel(object):
         return self._mb_current_out[fl_id]
 
 
+    def get_mb_Decimal(self, heights, year=None, fl_id=None, fls=None):
+        """Get the mass balance at the requested height and time.
+
+        Optimized so that no mb model call is necessary at each step.
+        It's almost same as get_mb, but it returns Decimal instead of float
+        @ Ruitang revised it 
+        To handle floating-point and numerical precision issues effectively
+        """
+
+        # Do we even have to optimise?
+        if self.mb_elev_feedback == 'always':
+            return self._mb_call(heights, year=year, fl_id=fl_id, fls=fls)
+
+        # Ok, user asked for it
+        if fl_id is None:
+            raise ValueError('Need fls_id')
+
+        if self.mb_elev_feedback == 'never':
+            # The very first call we take the heights
+            if fl_id not in self._mb_current_heights:
+                # We need to reset just this tributary
+                self._mb_current_heights[fl_id] = heights
+            # All calls we replace
+            heights = self._mb_current_heights[fl_id]
+
+        date = utils.floatyear_to_date_Decimal(year)
+        if self.mb_elev_feedback in ['annual', 'never']:
+            # ignore month changes
+            date = (date[0], date[0])
+
+        print("date hear is :",date)
+        print ("self._mb_current_date :",self._mb_current_date)
+        if self._mb_current_date == date:
+            print("self._mb_current_date == date")
+            print ("fl_id is :",fl_id)
+            print("self._mb_current_out is :",self._mb_current_out)
+            if fl_id not in self._mb_current_out:
+                # We need to reset just this tributary
+                try :
+                    self._mb_current_out[fl_id] = self._mb_call(heights,
+                                                                year=year,
+                                                                fl_id=fl_id,
+                                                                fls=fls)
+                except:
+                    print("something in self._mb_call is wrong")
+                    print(traceback.format_exc())
+        else:
+            # We need to reset all
+            print("we need to reset all")
+            self._mb_current_date = date
+            self._mb_current_out = dict()
+            print("heights is :", heights,"year is :",year,"fl_id is :",fl_id,"fls is :",fls)
+            try:
+                self._mb_current_out[fl_id] = self._mb_call(heights,
+                                                            year=year,
+                                                            fl_id=fl_id,
+                                                            fls=fls)
+            except:
+                print("something in self._mb_call is wrong")
+                print(traceback.format_exc())
+
+
+        return self._mb_current_out[fl_id]
+
+
 
     def to_geometry_netcdf(self, path):
         """Creates a netcdf group file storing the state of the model."""
@@ -1498,7 +1567,7 @@ class FlowlineModel(object):
                 Store_Month= do_geom or do_fl_diag
             else:
                 # store for each year, i.e. the first month of the year
-                Store_Month= do_geom or do_fl_diag and mo == 1
+                Store_Month= (do_geom or do_fl_diag and mo == 1)
 #            if (do_geom or do_fl_diag) and mo == 1:
             if Store_Month:
                 for s, w, b, fl in zip(sects, widths, buckets, self.fls):
@@ -1545,7 +1614,7 @@ class FlowlineModel(object):
                             # yr - 1 to use the mb which lead to the current
                             # state, also using previous surface height
                             if store_monthly_step:
-                                val = self.get_mb(surface_h_previous[fl_id],
+                                val = self.get_mb_Decimal(surface_h_previous[fl_id],
                                                 self.yr - 1/12,
                                                 fl_id=fl_id)
                             else:
@@ -1556,6 +1625,7 @@ class FlowlineModel(object):
                             # isclose for avoiding numeric represention artefacts
                             dhdt_zero = np.isclose(ds['dhdt_myr'].data[j, :],
                                                    0.)
+                            print("dhdt_zero is :",dhdt_zero)
                             ds['climatic_mb_myr'].data[j, :] = np.where(
                                 dhdt_zero,
                                 0.,
