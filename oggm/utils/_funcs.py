@@ -9,6 +9,10 @@ import logging
 import warnings
 import shutil
 from packaging.version import Version
+from decimal import Decimal, getcontext
+import math
+# Set the precision for Decimal operations
+getcontext().prec = 28
 
 # External libs
 import pandas as pd
@@ -605,20 +609,74 @@ def floatyear_to_date(yr):
 
     Parameters
     ----------
-    yr : float or list of float
+    yr : float or list of float/Decimal
         The floating year
     """
 
     out_y, remainder = np.divmod(yr, 1)
+    # Convert out_y to int type
     out_y = out_y.astype(int)
 
     month_exact = (remainder * 12 + 1)
-    # np.where to deal with floating point precision
+    # # np.where to deal with floating point precision
     out_m = np.minimum(12,
                        np.where(np.isclose(month_exact, np.round(month_exact)),
                                 np.round(month_exact),
                                 np.floor(month_exact)).astype(int))
 
+    if (isinstance(yr, list) or isinstance(yr, np.ndarray)) and len(yr) == 1:
+        out_y = out_y.item()
+        out_m = out_m.item()
+    elif isinstance(yr, xr.DataArray):
+        out_y = np.array(out_y)
+        out_m = np.array(out_m)
+
+    return out_y, out_m
+
+
+
+def floatyear_to_date_Decimal(yr):
+    """Converts a float year to an actual (year, month) pair.
+
+    Note that this doesn't account for leap years (365-day no leap calendar),
+    and that the months all have the same length.
+    
+    @ Ruitang revised the function to handle Decimal type input,
+    To handle floating-point and numerical precision issues effectively
+    Parameters
+    ----------
+    yr : float or list of float/Decimal
+        The floating year
+    """
+    # # Use Python's divmod function to get integer part and remainder
+    # out_y, remainder = divmod(float(yr), 1) # Convert Decimal to float
+    # # Convert out_y to int type
+    # out_y = int(round(out_y))
+    # #out_y = out_y.astype(int)
+    # month_exact = (remainder * 12 + 1)
+    # # Use round and handle values close to integers
+    # month_exact_rounded = round(month_exact)
+    # out_m = min(12, max(1, month_exact_rounded))
+
+
+    # # np.where to deal with floating point precision
+    # out_m = np.minimum(12,
+    #                    np.where(np.isclose(month_exact, np.round(month_exact)),
+    #                             np.round(month_exact),
+    #                             np.floor(month_exact)).astype(int))
+    year = int(yr // 1)  # Get the integer part of yr as the year
+    fraction = yr % 1  # Get the fractional part of yr
+
+    # Calculate the month from the fractional part
+    month = int(round(fraction * 12 + 1))  # Fraction part * 12, then add 1 for correct month indexing
+
+    # Adjust for overflow cases where month becomes 13
+    if month > 12:
+        month = 1
+        year += 1
+
+    out_m = month
+    out_y = year
     if (isinstance(yr, list) or isinstance(yr, np.ndarray)) and len(yr) == 1:
         out_y = out_y.item()
         out_m = out_m.item()
