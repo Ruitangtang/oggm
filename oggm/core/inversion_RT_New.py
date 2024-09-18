@@ -935,7 +935,7 @@ def mass_conservation_inversion(gdir, glen_a=None, fs=None, write=True,
         h_diff = np.ones(slope.shape)
         a0s = - cl['flux_a0'] / ((rho*cfg.G*slope)**3*fd)
         out_thick = _compute_thick(a0s, a3, cl['flux_a0'], sf, _inv_function)
-        print("out_thick before mass_conservation_inversion is :",out_thick)
+        #print("out_thick before mass_conservation_inversion is :",out_thick)
         # Iteratively seeking glacier state including water-depth dependent
         # processes
         while k < max_iter and np.any(h_diff > h_tol):
@@ -1062,7 +1062,7 @@ def mass_conservation_inversion(gdir, glen_a=None, fs=None, write=True,
             k += 1
             print("k in the iterations of mass_conservation_inversion now is:",k)
         print("--------------------------------------------------------")
-        print("h_diff is :",h_diff)
+        #print("h_diff is :",h_diff)
         print("h_tol is :",h_tol)
         print("np.any(h_diff > h_tol) is :",np.any(h_diff > h_tol))
         print("--------------------------------------------------------")
@@ -1073,7 +1073,7 @@ def mass_conservation_inversion(gdir, glen_a=None, fs=None, write=True,
                         f"v={np.min(out_thick)}.")
 
         out_thick = utils.clip_min(out_thick, 0)
-        print("the out_thick after mass_conservation_inversion is :",out_thick)
+        #print("the out_thick after mass_conservation_inversion is :",out_thick)
         if write:
             cl['is_trapezoid'] = is_trap
             cl['is_rectangular'] = is_rect
@@ -1717,7 +1717,7 @@ def calving_flux_from_depth(gdir, mb_model=None,mb_years=None,k=None, water_leve
 @entity_task(log, writes=['diagnostics'])
 def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
                                        water_level=None,
-                                       glen_a=None, fs=None,calving_law_inv=fa_sermeq_speed_law_inv,
+                                       glen_a=None, fs=None,calving_law_inv=None,
                                        modelprms =None,glacier_rgi_table = None,hindcast=None,debug =None,
                                        debug_refreeze = None,option_areaconstant=None, inversion_filter = None):
     """Optimized search for a calving flux compatible with the bed inversion.
@@ -1770,12 +1770,12 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
     from oggm.core import massbalance
 
     # Defaults
-    if calving_law_inv is None:
-        calving_law_inv = cfg.PARAMS['calving_law_inv']
-    elif calving_law_inv == fa_sermeq_speed_law_inv:
-        calving_law_inv = fa_sermeq_speed_law_inv
-    else :
-        calving_law_inv = None
+    # if calving_law_inv is None:
+    #     calving_law_inv = cfg.PARAMS['calving_law_inv']
+    # elif calving_law_inv == fa_sermeq_speed_law_inv:
+    #     calving_law_inv = fa_sermeq_speed_law_inv
+    # else :
+    #     calving_law_inv = None
 
     if not gdir.is_tidewater or not cfg.PARAMS['use_kcalving_for_inversion']:
         # Do nothing
@@ -1873,7 +1873,7 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
         water_depth = utils.clip_min(1e-3, thick - f_b)
         fl = calving_flux_from_depth(gdir, mb_model=mb_model,mb_years=mb_years,k= calving_k,
                                      water_level=water_level, water_depth=water_depth,
-                                     calving_law_inv =  fa_sermeq_speed_law_inv, modelprms = modelprms,
+                                     calving_law_inv =  calving_law_inv, modelprms = modelprms,
                                      glacier_rgi_table = glacier_rgi_table,hindcast = hindcast,
                                      debug = debug, debug_refreeze = debug_refreeze,
                                      option_areaconstant = option_areaconstant,
