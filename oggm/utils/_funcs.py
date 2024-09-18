@@ -614,15 +614,28 @@ def floatyear_to_date(yr):
     """
 
     out_y, remainder = np.divmod(yr, 1)
+    print("yr in floatyear_to_date :",yr)
+    print("out_y (1)is :",out_y)
+    print("remainder is :",remainder)
     # Convert out_y to int type
     out_y = out_y.astype(int)
-
+    print("out_y (2) is :",out_y)
+    # check for a floating point precision rounding problem
+    #out_y = np.where(np.isclose(yr, out_y + 1), out_y + 1, out_y)
+    #print("out_y (3)",out_y)
     month_exact = (remainder * 12 + 1)
+    print("month_exact is :",month_exact)
     # # np.where to deal with floating point precision
     out_m = np.minimum(12,
                        np.where(np.isclose(month_exact, np.round(month_exact)),
                                 np.round(month_exact),
                                 np.floor(month_exact)).astype(int))
+    print("out_m is :",out_m)
+        # Round the month to the nearest integer
+    # # out_m = np.round(month_exact).astype(int)
+
+    # # # Handle edge case: if month rounds to 13, reset to 1 and increment the year
+    # # out_m = np.where(out_m == 13, 1, out_m)  # Reset month to 1 if it equals 13
 
     if (isinstance(yr, list) or isinstance(yr, np.ndarray)) and len(yr) == 1:
         out_y = out_y.item()
