@@ -235,9 +235,9 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
     
     # u_stag[-1] is the main flowline
     velocity_m = model.u_stag[-1]*cfg.SEC_IN_YEAR
-    print('velocity_m is', velocity_m)
+    #print('velocity_m is', velocity_m)
     x_m = flowline.dis_on_line*flowline.map_dx
-    print('x_m in fa_sermq_law is :',x_m)
+    #print('x_m in fa_sermq_law is :',x_m)
 
     # gdir : py:class:`oggm.GlacierDirectory`
     #     the glacier directory to process
@@ -248,9 +248,9 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
     #  should call the monthly function
     mb_annual=model.mb_model.get_monthly_mb(heights=surface_m, fl_id=-1, year=model.yr, fls=model.fls)
 
-    print("mb_annual is (m ice per second):",mb_annual,"in year",model.yr,"Actually is monthly output")
+    #print("mb_annual is (m ice per second):",mb_annual,"in year",model.yr,"Actually is monthly output")
     Terminus_mb = mb_annual*cfg.SEC_IN_YEAR
-    print("Terminus mass balance is (m per year):",Terminus_mb)
+    #print("Terminus mass balance is (m per year):",Terminus_mb)
     # slice up to index+1 to include the last nonzero value
     # profile: NDarray
     #     The current profile (x, surface, bed,width) as calculated by the base model
@@ -259,7 +259,7 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
     profile=(x_m[:last_above_wl+1],
                  surface_m[:last_above_wl+1],
                  bed_m[:last_above_wl+1],width_m[:last_above_wl+1])
-    print("bed_h of the flowline using to do calving is :", bed_m[:last_above_wl+1])
+    #print("bed_h of the flowline using to do calving is :", bed_m[:last_above_wl+1])
     # model_velocity: array
     #     Velocity along the flowline [m/a] as calculated by the base model
     #     Should have values for the points nearest the terminus...otherwise
@@ -289,32 +289,32 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
     ## Ice thickness and yield thickness nearest the terminuss
     se_terminus = profile[1][last_index]
     bed_terminus = profile[2][last_index]
-    print("the surface at the terminus is (m a.s.l.) :",se_terminus)
-    print("the bed at the terminus is (m a.s.l.) :",bed_terminus)
+    #print("the surface at the terminus is (m a.s.l.) :",se_terminus)
+    #print("the bed at the terminus is (m a.s.l.) :",bed_terminus)
     h_terminus = se_terminus - bed_terminus
     width_terminus = profile[3][last_index]
     tau_y_terminus = tau_y(tau0=tau0, bed_elev=bed_terminus, thick=h_terminus, variable_yield=variable_yield)
-    print('tau_y_terminus in fa_sermeq_speed_law is:',tau_y_terminus)  
+    #print('tau_y_terminus in fa_sermeq_speed_law is:',tau_y_terminus)  
     Hy_terminus = balance_thickness(yield_strength=tau_y_terminus, bed_elev=bed_terminus)
-    print('Hy_terminus in fa_sermeq_speed_law is:',Hy_terminus)  
+    #print('Hy_terminus in fa_sermeq_speed_law is:',Hy_terminus)  
     if isinstance(model_velocity, (int, float)):
         U_terminus = model_velocity
         U_adj = model_velocity
     else:
         U_terminus = model_velocity[last_index]  ## velocity, assuming last point is terminus
         U_adj = model_velocity[last_index - 1]
-    print(f"the U terminus and adj are (m a-1): {U_terminus} and {U_adj}")
+    #print(f"the U terminus and adj are (m a-1): {U_terminus} and {U_adj}")
 
     ## Ice thickness and yield thickness at adjacent point
     se_adj = profile[1][last_index - 1]
     bed_adj = profile[2][last_index - 1]
-    print("the surface at the grid backbefore the terminus (adj) (m a.s.l.) is :" ,se_adj)
-    print("the bed at the grid backbefore the terminus (adj) (m a.s.l.) is :" ,bed_adj)
+    #print("the surface at the grid backbefore the terminus (adj) (m a.s.l.) is :" ,se_adj)
+    #print("the bed at the grid backbefore the terminus (adj) (m a.s.l.) is :" ,bed_adj)
     H_adj = se_adj - bed_adj
     tau_y_adj = tau_y(tau0=tau0, bed_elev=bed_adj, thick=H_adj, variable_yield=variable_yield)
-    print('tau_y_adj in fa_sermeq_speed_law is:',tau_y_adj)
+    #print('tau_y_adj in fa_sermeq_speed_law is:',tau_y_adj)
     Hy_adj = balance_thickness(yield_strength=tau_y_adj, bed_elev=bed_adj)
-    print('Hy_adj in fa_sermeq_speed_law is:',Hy_adj)
+    #print('Hy_adj in fa_sermeq_speed_law is:',Hy_adj)
     # Gradients
     dx_term = profile[0][last_index] - profile[0][last_index - 1]  ## check grid spacing close to terminus
     if dx_term <= 0.0 :
@@ -347,8 +347,8 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
         #     raise RuntimeError('DHYDX-DHDX IS LESS THEN ZERO')
         # elif dLdt_denominator == 0:
         #     raise RuntimeError('DHYDX-DHDX IS ZERO')
-        print('dLdt_numerator',dLdt_numerator)
-        print('dLdt_denominator',dLdt_denominator)
+        #print('dLdt_numerator',dLdt_numerator)
+        #print('dLdt_denominator',dLdt_denominator)
         # fa_viscoplastic = dLdt_viscoplastic -U_terminus  ## frontal ablation rate
         
         # try:
@@ -815,7 +815,7 @@ class CalvingFluxBasedModelJanRt(FlowlineModel):
                         try:
                             # Transit the unit of tau0 to Pa, based on the equation self.calving_k= calving_k/cfg.SEC_IN_YEAR
                             # tau0 = self.calving_k * cfg.SEC_IN_YEAR
-                            s_fa = self.calving_law(self, last_above_wl,v_scaling = 1, verbose = True,tau0 = k*cfg.SEC_IN_YEAR,
+                            s_fa = self.calving_law(self, last_above_wl,v_scaling = 1, verbose = False,tau0 = k*cfg.SEC_IN_YEAR,
                                                 variable_yield=self.variable_yield, mu = 0.01,trim_profile = 1)
                             calving_flux = s_fa ['Sermeq_fa']*s_fa['Thickness_termi']*s_fa['Width_termi']/cfg.SEC_IN_YEAR
                         except RuntimeError:
@@ -1088,7 +1088,9 @@ class CalvingFluxBasedModelJanRt(FlowlineModel):
             fl.section = section
 
         # Next step
+        print("before step , self.t is :",self.t)
         self.t += dt
+        print("after step , self.t is :",self.t)
         return dt
 
     def get_diagnostics(self, fl_id=-1):
