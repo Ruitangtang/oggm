@@ -16,7 +16,7 @@ import sys
 from decimal import Decimal, getcontext
 import math
 # Set the precision for Decimal operations
-getcontext().prec = 28
+#getcontext().prec = 28
 
 # External libs
 import numpy as np
@@ -623,7 +623,7 @@ class FlowlineModel(object):
     def __init__(self, flowlines, mb_model=None, y0=0., glen_a=None,
                  fs=None, inplace=False, smooth_trib_influx=True,
                  is_tidewater=False, is_lake_terminating=False,
-                 mb_elev_feedback='annual', check_for_boundaries=None,
+                 mb_elev_feedback='monthly', check_for_boundaries=None,
                  water_level=None, required_model_steps='monthly'):
         """Create a new flowline model from the flowlines and a MB model.
 
@@ -868,7 +868,8 @@ class FlowlineModel(object):
 
         Optimized so that no mb model call is necessary at each step.
         """
-
+        
+        print("******************** get_mb start *********************")
         # Do we even have to optimise?
         if self.mb_elev_feedback == 'always':
             return self._mb_call(heights, year=year, fl_id=fl_id, fls=fls)
@@ -892,10 +893,14 @@ class FlowlineModel(object):
 
         print("date hear is :",date)
         print ("self._mb_current_date :",self._mb_current_date)
+        print("self.mb_elev_feedback is :",self.mb_elev_feedback)
+        print("year in get_mb is :",year)
+        print("fl_id in get_mb is :",fl_id)
+        print("fls in get_mb is :",fls)
         if self._mb_current_date == date:
             print("self._mb_current_date == date")
             print ("fl_id is :",fl_id)
-            print("self._mb_current_out is :",self._mb_current_out)
+            #print("self._mb_current_out is :",self._mb_current_out)
             if fl_id not in self._mb_current_out:
                 # We need to reset just this tributary
                 try :
@@ -911,7 +916,7 @@ class FlowlineModel(object):
             print("we need to reset all")
             self._mb_current_date = date
             self._mb_current_out = dict()
-            print("heights is :", heights,"year is :",year,"fl_id is :",fl_id,"fls is :",fls)
+            #print("heights is :", heights,"year is :",year,"fl_id is :",fl_id,"fls is :",fls)
             try:
                 self._mb_current_out[fl_id] = self._mb_call(heights,
                                                             year=year,
@@ -921,73 +926,75 @@ class FlowlineModel(object):
                 print("something in self._mb_call is wrong")
                 print(traceback.format_exc())
 
-
+        print("********************* get_mb end **********************")
         return self._mb_current_out[fl_id]
 
 
-    def get_mb_Decimal(self, heights, year=None, fl_id=None, fls=None):
-        """Get the mass balance at the requested height and time.
+    # def get_mb_Decimal(self, heights, year=None, fl_id=None, fls=None):
+    #     """Get the mass balance at the requested height and time.
 
-        Optimized so that no mb model call is necessary at each step.
-        It's almost same as get_mb, but it returns Decimal instead of float
-        @ Ruitang revised it 
-        To handle floating-point and numerical precision issues effectively
-        """
+    #     Optimized so that no mb model call is necessary at each step.
+    #     It's almost same as get_mb, but it returns Decimal instead of float
+    #     @ Ruitang revised it 
+    #     To handle floating-point and numerical precision issues effectively
+    #     """
 
-        # Do we even have to optimise?
-        if self.mb_elev_feedback == 'always':
-            return self._mb_call(heights, year=year, fl_id=fl_id, fls=fls)
+    #     # Do we even have to optimise?
+    #     if self.mb_elev_feedback == 'always':
+    #         return self._mb_call(heights, year=year, fl_id=fl_id, fls=fls)
 
-        # Ok, user asked for it
-        if fl_id is None:
-            raise ValueError('Need fls_id')
+    #     # Ok, user asked for it
+    #     if fl_id is None:
+    #         raise ValueError('Need fls_id')
 
-        if self.mb_elev_feedback == 'never':
-            # The very first call we take the heights
-            if fl_id not in self._mb_current_heights:
-                # We need to reset just this tributary
-                self._mb_current_heights[fl_id] = heights
-            # All calls we replace
-            heights = self._mb_current_heights[fl_id]
+    #     if self.mb_elev_feedback == 'never':
+    #         # The very first call we take the heights
+    #         if fl_id not in self._mb_current_heights:
+    #             # We need to reset just this tributary
+    #             self._mb_current_heights[fl_id] = heights
+    #         # All calls we replace
+    #         heights = self._mb_current_heights[fl_id]
 
-        date = utils.floatyear_to_date_Decimal(year)
-        if self.mb_elev_feedback in ['annual', 'never']:
-            # ignore month changes
-            date = (date[0], date[0])
+    #     date = utils.floatyear_to_date_Decimal(year)
+    #     if self.mb_elev_feedback in ['annual', 'never']:
+    #         # ignore month changes
+    #         date = (date[0], date[0])
 
-        print("date hear is :",date)
-        print ("self._mb_current_date :",self._mb_current_date)
-        if self._mb_current_date == date:
-            print("self._mb_current_date == date")
-            print ("fl_id is :",fl_id)
-            print("self._mb_current_out is :",self._mb_current_out)
-            if fl_id not in self._mb_current_out:
-                # We need to reset just this tributary
-                try :
-                    self._mb_current_out[fl_id] = self._mb_call(heights,
-                                                                year=year,
-                                                                fl_id=fl_id,
-                                                                fls=fls)
-                except:
-                    print("something in self._mb_call is wrong")
-                    print(traceback.format_exc())
-        else:
-            # We need to reset all
-            print("we need to reset all")
-            self._mb_current_date = date
-            self._mb_current_out = dict()
-            print("heights is :", heights,"year is :",year,"fl_id is :",fl_id,"fls is :",fls)
-            try:
-                self._mb_current_out[fl_id] = self._mb_call(heights,
-                                                            year=year,
-                                                            fl_id=fl_id,
-                                                            fls=fls)
-            except:
-                print("something in self._mb_call is wrong")
-                print(traceback.format_exc())
+    #     print("date hear is (get_mb_Deciaml) :",date)
+    #     print ("self._mb_current_date :",self._mb_current_date)
+    #     print("year in get_mb_Decimal is :",year)
+    #     print("self.mb_elev_feedback is :",self.mb_elev_feedback)
+    #     if self._mb_current_date == date:
+    #         print("self._mb_current_date == date")
+    #         print ("fl_id is :",fl_id)
+    #         #print("self._mb_current_out is :",self._mb_current_out)
+    #         if fl_id not in self._mb_current_out:
+    #             # We need to reset just this tributary
+    #             try :
+    #                 self._mb_current_out[fl_id] = self._mb_call(heights,
+    #                                                             year=year,
+    #                                                             fl_id=fl_id,
+    #                                                             fls=fls)
+    #             except:
+    #                 print("something in self._mb_call is wrong")
+    #                 print(traceback.format_exc())
+    #     else:
+    #         # We need to reset all
+    #         print("we need to reset all")
+    #         self._mb_current_date = date
+    #         self._mb_current_out = dict()
+    #         print("heights is :", heights,"year is :",year,"fl_id is :",fl_id,"fls is :",fls)
+    #         try:
+    #             self._mb_current_out[fl_id] = self._mb_call(heights,
+    #                                                         year=year,
+    #                                                         fl_id=fl_id,
+    #                                                         fls=fls)
+    #         except:
+    #             print("something in self._mb_call is wrong")
+    #             print(traceback.format_exc())
 
 
-        return self._mb_current_out[fl_id]
+    #     return self._mb_current_out[fl_id]
 
 
 
@@ -1076,9 +1083,18 @@ class FlowlineModel(object):
                 # lets run the steps until we reach our desired date
                 print("t in the run_until is :",t)
                 print("self.t is :",self.t)
-                while self.t < t:
-                    print("do the step in the run_until")
-                    self.step(t - self.t)
+                while self.t < t:               
+                    # # if self.required_model_steps == 'monthly':
+                    # #     self.step(SEC_IN_YEAR/12.0)
+                    # #     check_month = np.arange(0,12)/12.0
+                    # #     year_r = np.floor(t / SEC_IN_YEAR)
+                    # #     month_r = (t / SEC_IN_YEAR - year_r)
+                    # #     dist= np.abs(check_month - month_r)
+                    # #     mns=np.argmin(dist)
+                    # #     self.t = year_r * SEC_IN_YEAR + mns * SEC_IN_YEAR/12.0
+                    # # else:
+                    # #     print("do the step in the run_until")
+                        self.step(t - self.t)
 
                 # Check for domain bounds
                 if self.check_for_boundaries:
@@ -1553,13 +1569,14 @@ class FlowlineModel(object):
         prev_state = None  # for the stopping criterion
         print("start_run")
         for i, (yr, mo) in enumerate(zip(monthly_time, months)):
+            print("------------------------------------------j ------------------------------------------is :",j)
             print("monthly_time (yr) is:",yr,"months is:",mo)
             print("self year is:",self.yr)
             if yr > self.yr:
                 # Here we model run - otherwise (for spinup) we
                 # constantly store the same data
                 self.run_until(yr)
-                print("runned for the year :",yr)
+                print("-----runned for the year -----:",yr)
             # Glacier geometry
             # We store the geometry at the beginning of each hydrological year/month
             if store_monthly_step:
@@ -1613,19 +1630,21 @@ class FlowlineModel(object):
                         if 'climatic_mb' in ovars_fl and (yr > self.y0):
                             # yr - 1 to use the mb which lead to the current
                             # state, also using previous surface height
+                            print("yr is :",yr)
+                            print("self.yr is :",self.yr)
                             if store_monthly_step:
-                                val = self.get_mb_Decimal(surface_h_previous[fl_id],
-                                                self.yr - 1/12,
+                                val = self.get_mb(surface_h_previous[fl_id],
+                                                (self.yr - 0.0833333333333),
                                                 fl_id=fl_id)
                             else:
-                                val = self.get_mb(fl.surface_h,
+                                val = self.get_mb(surface_h_previous[fl_id],
                                                 self.yr - 1,
                                                 fl_id=fl_id)
                             # only save climatic mb where dhdt is non zero,
                             # isclose for avoiding numeric represention artefacts
                             dhdt_zero = np.isclose(ds['dhdt_myr'].data[j, :],
                                                    0.)
-                            print("dhdt_zero is :",dhdt_zero)
+                            #print("dhdt_zero is :",dhdt_zero)
                             ds['climatic_mb_myr'].data[j, :] = np.where(
                                 dhdt_zero,
                                 0.,
