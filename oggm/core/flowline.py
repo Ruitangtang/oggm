@@ -863,7 +863,7 @@ class FlowlineModel(object):
     def length_m(self):
         return self.fls[-1].length_m
 
-    def get_mb(self, heights, year=None, fl_id=None, fls=None):
+    def get_mb(self, heights, year=None, fl_id=None, fls=None,store_monthly_step=False):
         """Get the mass balance at the requested height and time.
 
         Optimized so that no mb model call is necessary at each step.
@@ -885,8 +885,11 @@ class FlowlineModel(object):
                 self._mb_current_heights[fl_id] = heights
             # All calls we replace
             heights = self._mb_current_heights[fl_id]
+        if store_monthly_step:
+            date = utils.floatyear_to_date_Decimal(year)
+        else:
+            date = utils.floatyear_to_date(year)
 
-        date = utils.floatyear_to_date(year)
         if self.mb_elev_feedback in ['annual', 'never']:
             # ignore month changes
             date = (date[0], date[0])
@@ -1635,7 +1638,7 @@ class FlowlineModel(object):
                             if store_monthly_step:
                                 val = self.get_mb(surface_h_previous[fl_id],
                                                 (self.yr - 0.0833333333333),
-                                                fl_id=fl_id)
+                                                fl_id=fl_id,store_monthly_step=store_monthly_step)
                             else:
                                 val = self.get_mb(surface_h_previous[fl_id],
                                                 self.yr - 1,
