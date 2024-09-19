@@ -1376,6 +1376,11 @@ class FlowlineModel(object):
             diag_ds['length_m'] = ('time', np.zeros(nm) * np.NaN)
             diag_ds['length_m'].attrs['description'] = 'Glacier length'
             diag_ds['length_m'].attrs['unit'] = 'm'
+        
+        if 'length_change_rate' in ovars:
+            diag_ds['length_change_rate_myr'] = ('time', np.zeros(nm) * np.NaN)
+            diag_ds['length_change_rate_myr'].attrs['description'] = 'Glacier length change rate'
+            diag_ds['length_change_rate_myr'].attrs['unit'] = 'm yr-1'
 
         if 'calving' in ovars:
             diag_ds['calving_m3'] = ('time', np.zeros(nm) * np.NaN)
@@ -1638,7 +1643,7 @@ class FlowlineModel(object):
                             if store_monthly_step:
                                 val = self.get_mb(surface_h_previous[fl_id],
                                                 (self.yr - 0.0833333333333),
-                                                fl_id=fl_id,store_monthly_step=store_monthly_step)
+                                                fl_id=fl_id,store_monthly_step= True)
                             else:
                                 val = self.get_mb(surface_h_previous[fl_id],
                                                 self.yr - 1,
@@ -1694,6 +1699,8 @@ class FlowlineModel(object):
                         for fl in self.fls])
             if 'length' in ovars:
                 diag_ds['length_m'].data[i] = self.length_m
+            if 'length_change_rate' in ovars:
+                diag_ds['length_change_rate_myr'].data[i] = self.length_change_rate_myr
             if 'calving' in ovars:
                 diag_ds['calving_m3'].data[i] = self.calving_m3_since_y0
             if 'calving_rate' in ovars:
