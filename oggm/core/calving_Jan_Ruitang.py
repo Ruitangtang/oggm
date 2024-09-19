@@ -534,6 +534,10 @@ class CalvingFluxBasedModelJanRt(FlowlineModel):
 
         self.ovars = cfg.PARAMS['store_diagnostic_variables']
 
+
+        # length change rate
+        self.length_change_rate_myr = 0.
+
         # Stretching distance (or stress coupling length) for frontal dynamics
         if self.do_calving:
             self.stretch_dist_p = cfg.PARAMS['max_calving_stretch_distance']
@@ -682,6 +686,7 @@ class CalvingFluxBasedModelJanRt(FlowlineModel):
             add_calving = []
             self.calving_flux = 0.
             self.discharge = 0.
+            self.length_change_rate_myr = 0.
 
             A = self.glen_a
             N = self.glen_n
@@ -818,12 +823,16 @@ class CalvingFluxBasedModelJanRt(FlowlineModel):
                             s_fa = self.calving_law(self, last_above_wl,v_scaling = 1, verbose = False,tau0 = k*cfg.SEC_IN_YEAR,
                                                 variable_yield=self.variable_yield, mu = 0.01,trim_profile = 1)
                             calving_flux = s_fa ['Sermeq_fa']*s_fa['Thickness_termi']*s_fa['Width_termi']/cfg.SEC_IN_YEAR
+                            # length_change_rate
+                            dLdt = s_fa['dLdt']
+                            self.length_change_rate_myr = dLdt
                         except RuntimeError:
                             traceback.print_exception(*sys.exc_info())
                     else:
                         calving_flux = self.calving_law(self, fl, last_above_wl)
 
                     self.calving_flux = utils.clip_min(0, calving_flux)
+                    
 
             # Usual ice dynamics
             else:
@@ -874,7 +883,7 @@ class CalvingFluxBasedModelJanRt(FlowlineModel):
             # so that MB models which rely on glacier geometry to decide things
             # (like PyGEM) can do wo with a clean glacier state
             mbs.append(self.get_mb(fl.surface_h, self.yr,
-                                   fl_id=fl_id, fls=self.fls))
+                                   fl_id=fl_id, fls=self.fls,store_monthly_step=True))
 
         # Time step
         if self.fixed_dt:
