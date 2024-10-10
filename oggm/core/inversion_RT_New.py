@@ -50,6 +50,8 @@ from oggm.core.gis import gaussian_blur
 from oggm.core.massbalance import ConstantMassBalance
 from oggm.exceptions import InvalidParamsError, InvalidWorkflowError
 from oggm.cfg import G
+from oggm import workflow
+from oggm import tasks
 
 # PyGEM
 #import pygem_input as pygem_prms
@@ -836,7 +838,7 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
                 pass
             return SQFA
         except:
-            print("Something wrong in the try part in fa_sermeq_speed_law_inv,in inversion.py")
+            print("Something wrong in the try part in fa_sermeq_speed_law_inv,in inversion_RT_New.py")
             print(traceback.format_exc())
 
 
@@ -1796,6 +1798,7 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
             print("apparent_mb_from_any_mb running successfully")
         except:
             print("Something is wrong with the function apparent_mb_from_any_mb")
+            print(traceback.format_exc())
         prepare_for_inversion(gdir)
         try:
             v_ref = mass_conservation_inversion(gdir, water_level=water_level,
@@ -1803,6 +1806,12 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
             print(" mass_conservation_inversion running successfully")
         except:
             print("Something is wrong with the function mass_conservation_inversion")
+        # try:
+        #     workflow.calibrate_inversion_from_consensus(gdir, apply_fs_on_mismatch=True,filter_inversion_output =True,volume_m3_reference=None)
+        # except:
+        #     print("Something is wrong with the function calibrate_inversion_from_consensus")
+        #     print(traceback.format_exc())
+        # v_ref = tasks.get_inversion_volume(gdir)    
 
     # Store for statistics
     gdir.add_to_diagnostics('volume_before_calving', v_ref)
@@ -2065,6 +2074,11 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
         prepare_for_inversion(gdir)
         mass_conservation_inversion(gdir, water_level=water_level,
                                     glen_a=glen_a, fs=fs, min_rel_h=opt)
+        # try:
+        #     workflow.calibrate_inversion_from_consensus(gdir, apply_fs_on_mismatch=True,filter_inversion_output =True,volume_m3_reference=None)
+        # except:
+        #     print("Something is wrong with the function calibrate_inversion_from_consensus")
+        #     print(traceback.format_exc())
 
     out = calving_flux_from_depth(gdir, water_level=water_level,water_depth=water_depth, k=calving_k,
                                   mb_model=mb_model,mb_years=mb_years,
