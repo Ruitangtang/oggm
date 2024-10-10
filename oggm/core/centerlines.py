@@ -304,18 +304,18 @@ class Centerline(object, metaclass=SuperclassMeta):
             # shifted one position and subtracted only after the ice flew
             # through the cell
             smb_pos = np.concatenate((np.where(smb > 0, smb, 0), [0]))
-            print("smb_pos (mm a-1) is :",smb_pos)
+            #print("smb_pos (mm a-1) is :",smb_pos)
             smb_neg = np.concatenate(([0], np.where(smb < 0, smb, 0)))
-            print("smb_neg (mm a-1) is :",smb_neg)
+            #print("smb_neg (mm a-1) is :",smb_neg)
             smb_add = smb_pos + smb_neg
-            print("smb_add (mm a-1) is :",smb_add)
+            #print("smb_add (mm a-1) is :",smb_add)
         #print("self.flux is :",self.flux)
         flux_ext = np.concatenate((self.flux, [0]))
         #print("flux_ext is :",flux_ext)
         flux_needs_correction = False
         #print("flux_ext+smb_add is :",flux_ext+smb_add)
         flux = np.cumsum(flux_ext + smb_add)
-        print("flux in Centerline.set_apparent_mb (mm a-1) is :",flux)
+        #print("flux in Centerline.set_apparent_mb (mm a-1) is :",flux)
 
         # We filter lines with a negative flux at the last grid point, the
         # threshold of -1e-5 is needed to avoid problems with numeric precision
