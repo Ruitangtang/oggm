@@ -2047,7 +2047,7 @@ def apparent_mb_from_any_mb(gdir, mb_model=None,
                                           fls=fls, fl_id=fl_id)
             #print("year is:",yr)
         mbz = mbz / len(mb_years)
-        print("mbz is (m of ice per second)",mbz)
+        #print("mbz is (m of ice per second)",mbz)
         fl.set_apparent_mb(mbz * cfg.SEC_IN_YEAR * rho + residual,
                            is_calving=is_calving)
         print('*****************************************************************')
