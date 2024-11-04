@@ -543,6 +543,7 @@ def recursive_valid_polygons(geoms, crs):
     return new_geoms
 
 
+
 def multipolygon_to_polygon(geometry, gdir=None):
     """Sometimes an RGI geometry is a multipolygon: this should not happen.
 
@@ -601,6 +602,82 @@ def multipolygon_to_polygon(geometry, gdir=None):
     return geometry
 
 
+# def floatyear_to_date(yr):
+#     """Converts a float year to an actual (year, month) pair.
+
+#     Note that this doesn't account for leap years (365-day no leap calendar),
+#     and that the months all have the same length.
+
+#     Parameters
+#     ----------
+#     yr : float or list of float/Decimal
+#         The floating year
+#     """
+
+#     out_y, remainder = np.divmod(yr, 1)
+
+#     out_y = out_y.astype(int)
+
+#     month_exact = (remainder * 12 + 1)
+#     # np.where to deal with floating point precision
+#     out_m = np.minimum(12,
+#                        np.where(np.isclose(month_exact, np.round(month_exact)),
+#                                 np.round(month_exact),
+#                                 np.floor(month_exact)).astype(int))
+       
+#     if (isinstance(yr, list) or isinstance(yr, np.ndarray)) and len(yr) == 1:
+#         out_y = out_y.item()
+#         out_m = out_m.item()
+#     elif isinstance(yr, xr.DataArray):
+#         out_y = np.array(out_y)
+#         out_m = np.array(out_m)
+
+#     return out_y, out_m
+
+# def floatyear_to_date(yr):
+#     """Converts a float year to an actual (year, month) pair.
+
+#     Note that this doesn't account for leap years (365-day no leap calendar),
+#     and that the months all have the same length.
+
+#     Parameters
+#     ----------
+#     yr : float or list of float
+#         The floating year
+#     """
+
+#     if isinstance(yr, xr.DataArray):
+#         yr = yr.values
+
+#     if isinstance(yr, (int, float)):
+#         yr = np.array([yr], dtype=np.float64)
+
+#     # check if year is inside machine precision to next higher int
+#     yr_ceil = np.ceil(yr)
+#     yr = np.where(np.isclose(yr,
+#                              yr_ceil,
+#                              rtol=np.finfo(np.float64).eps,
+#                              atol=0
+#                              ),
+#                   yr_ceil,
+#                   yr)
+
+#     out_y, remainder = np.divmod(yr, 1)
+#     out_y = out_y.astype(int)
+
+#     month_exact = (remainder * 12 + 1)
+#     # np.where to deal with floating point precision
+#     out_m = np.minimum(12,
+#                        np.where(np.isclose(month_exact, np.round(month_exact)),
+#                                 np.round(month_exact),
+#                                 np.floor(month_exact)).astype(int))
+
+#     if (isinstance(yr, list) or isinstance(yr, np.ndarray)) and len(yr) == 1:
+#         out_y = out_y.item()
+#         out_m = out_m.item()
+
+#     return out_y, out_m
+
 def floatyear_to_date(yr):
     """Converts a float year to an actual (year, month) pair.
 
@@ -609,12 +686,27 @@ def floatyear_to_date(yr):
 
     Parameters
     ----------
-    yr : float or list of float/Decimal
+    yr : float or list of float
         The floating year
     """
 
-    out_y, remainder = np.divmod(yr, 1)
+    if isinstance(yr, xr.DataArray):
+        yr = yr.values
 
+    # Ensure yr is a np.array, even for scalar values
+    yr = np.atleast_1d(yr).astype(np.float64)
+
+    # check if year is inside machine precision to next higher int
+    yr_ceil = np.ceil(yr)
+    yr = np.where(np.isclose(yr,
+                             yr_ceil,
+                             rtol=np.finfo(np.float64).eps,
+                             atol=0
+                             ),
+                  yr_ceil,
+                  yr)
+
+    out_y, remainder = np.divmod(yr, 1)
     out_y = out_y.astype(int)
 
     month_exact = (remainder * 12 + 1)
@@ -623,16 +715,12 @@ def floatyear_to_date(yr):
                        np.where(np.isclose(month_exact, np.round(month_exact)),
                                 np.round(month_exact),
                                 np.floor(month_exact)).astype(int))
-       
-    if (isinstance(yr, list) or isinstance(yr, np.ndarray)) and len(yr) == 1:
+
+    if yr.size == 1:
         out_y = out_y.item()
         out_m = out_m.item()
-    elif isinstance(yr, xr.DataArray):
-        out_y = np.array(out_y)
-        out_m = np.array(out_m)
 
     return out_y, out_m
-
 
 
 def floatyear_to_date_Decimal(yr):
