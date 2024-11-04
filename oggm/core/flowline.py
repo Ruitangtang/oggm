@@ -887,6 +887,7 @@ class FlowlineModel(object):
             heights = self._mb_current_heights[fl_id]
         if store_monthly_step:
             date = utils.floatyear_to_date_Decimal(year)
+            #date = utils.floatyear_to_date(year)
         else:
             date = utils.floatyear_to_date(year)
 
@@ -1107,7 +1108,7 @@ class FlowlineModel(object):
                 
                 # Check for NaNs
                 for fl in self.fls:
-                    #print("the fl.thick in run_until is",fl.thick)
+                    print("the fl.thick in run_until is",fl.thick)
                     if np.any(~np.isfinite(fl.thick)):
                         raise FloatingPointError('NaN in numerical solution, '
                                                 'at year: {}'.format(self.yr))
@@ -1121,7 +1122,7 @@ class FlowlineModel(object):
                             diag_path=None,
                             fl_diag_path=True,
                             geom_path=False,
-                            store_monthly_step= True,
+                            store_monthly_step= None,
                             stop_criterion=None,
                             fixed_geometry_spinup_yr=None,
                             dynamic_spinup_min_ice_thick=None,
@@ -1224,11 +1225,14 @@ class FlowlineModel(object):
             store_monthly_step = self.mb_step == 'monthly'
 
         if store_monthly_step:
+            print("store_monthly_step is True,monthly step")
             monthly_time = utils.monthly_timeseries(y0, y1)
         else:
+            print("store_monthly_step is False,annual step")
             monthly_time = np.arange(np.floor(y0), np.floor(y1)+1)
 
         sm = cfg.PARAMS['hydro_month_' + self.mb_model.hemisphere]
+
         try:
             print("y1 is :",y1)
             print("monthly_time is:",monthly_time)
@@ -1257,7 +1261,7 @@ class FlowlineModel(object):
             hmonths = [hmonths]
             #cmonths = months
         nm = len(monthly_time)
-        print("nm is :",nm)
+        print("nm (number of month) is :",nm)
         if do_geom or do_fl_diag:
             if store_monthly_step:
                 sects = [(np.zeros((nm, fl.nx)) * np.NaN) for fl in self.fls]
@@ -1381,6 +1385,11 @@ class FlowlineModel(object):
             diag_ds['length_change_rate_myr'] = ('time', np.zeros(nm) * np.NaN)
             diag_ds['length_change_rate_myr'].attrs['description'] = 'Glacier length change rate'
             diag_ds['length_change_rate_myr'].attrs['unit'] = 'm yr-1'
+
+        if 'velocity_at_calvingfront' in ovars:
+            diag_ds['velocity_at_calving_front_myr'] = ('time', np.zeros(nm) * np.NaN)
+            diag_ds['velocity_at_calving_front_myr'].attrs['description'] = 'Glacier velocity at calving front'
+            diag_ds['velocity_at_calving_front_myr'].attrs['unit'] ='m a-1'
 
         if 'calving' in ovars:
             diag_ds['calving_m3'] = ('time', np.zeros(nm) * np.NaN)
@@ -1589,7 +1598,15 @@ class FlowlineModel(object):
             # We store the geometry at the beginning of each hydrological year/month
             if store_monthly_step:
                 # store for each monthly step
+                #TODO : check the monthly time i for the function floatyear_to_date, here is hard coded for 2000-2020 (monthly update), and 2000-2100 (annual update)
+                # if nm <242:
+                #     print("nm (number of month) is:",nm)
+                print("store the monthly diagnostic variables")
                 Store_Month= do_geom or do_fl_diag
+                # else:
+                #     print("store the annual diagnostic variables")
+                #     # store for each year, i.e. the first month of the year
+                #     Store_Month= (do_geom or do_fl_diag and mo == 1)
             else:
                 # store for each year, i.e. the first month of the year
                 Store_Month= (do_geom or do_fl_diag and mo == 1)
@@ -1640,10 +1657,23 @@ class FlowlineModel(object):
                             # state, also using previous surface height
                             print("yr is :",yr)
                             print("self.yr is :",self.yr)
+                            # if store_monthly_step:
+                            #     print("the monthly time before is :",monthly_time[i-1])
+                            #     #TODO : check the monthly time i-1 for the function floatyear_to_date, here is hard coded for 2000-2020 (monthly update), and 2000-2100 (annual update)
+                            #     # if i < 240:
+                            #     #     val = self.get_mb(surface_h_previous[fl_id],
+                            #     #                 (monthly_time[i-1]),
+                            #     #                 fl_id=fl_id,store_monthly_step= True) 
+                            #     # else :
+                            #     val = self.get_mb(surface_h_previous[fl_id],
+                            #                         self.yr - 1/12,
+                            #                         fl_id=fl_id,store_monthly_step= True)
+                            #     #0.0833333333333
+                            # else:
                             if store_monthly_step:
                                 val = self.get_mb(surface_h_previous[fl_id],
-                                                (self.yr - 0.0833333333333),
-                                                fl_id=fl_id,store_monthly_step= True)
+                                            self.yr - 0.0833333333333,
+                                            fl_id=fl_id,store_monthly_step= True)
                             else:
                                 val = self.get_mb(surface_h_previous[fl_id],
                                                 self.yr - 1,
@@ -1701,6 +1731,8 @@ class FlowlineModel(object):
                 diag_ds['length_m'].data[i] = self.length_m
             if 'length_change_rate' in ovars:
                 diag_ds['length_change_rate_myr'].data[i] = self.length_change_rate_myr
+            if 'velocity_at_calvingfront' in ovars:
+                diag_ds['velocity_at_calving_front_myr'].data[i] = self.velocity_at_calving_front_myr
             if 'calving' in ovars:
                 diag_ds['calving_m3'].data[i] = self.calving_m3_since_y0
             if 'calving_rate' in ovars:
@@ -1853,6 +1885,7 @@ class FlowlineModel(object):
         else:
             out = tuple(out)
         return out
+
 
     def run_until_equilibrium(self, rate=0.001, ystep=5, max_ite=200):
         """ Runs the model until an equilibrium state is reached.
