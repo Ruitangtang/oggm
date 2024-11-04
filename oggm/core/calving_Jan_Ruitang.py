@@ -71,7 +71,7 @@ def k_calving_law(model, flowline, last_above_wl):
 
 def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
                      tau0=1.5, variable_yield=None, mu=0.01,
-                     trim_profile=1):
+                     trim_profile=1,mb_elev_feedback='monthly'):
     """
     This function is used to calculate frontal ablation given ice speed forcing,
     for lake-terminating and tidewater glaciers
@@ -110,6 +110,8 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
         How many grid cells at the end of the profile to ignore.  Default is 1.
         If the initial profile is set by k-calving (as in testing) there can be a
         weird cliff shape with very thin final grid point and large velocity gradient
+
+    mb_elev_feedback : str, default: 'monthly' (dynamic step is monthly) ; 'annual' (dynamic step is annual)
 
     Returns
     -------
@@ -246,8 +248,10 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
     #                                                    mb_model_class=MonthlyTIModel)
     #mb_annual=model.mb_model.get_annual_mb(heights=surface_m, fl_id=-1, year=model.yr, fls=model.fls)
     #  should call the monthly function
-    mb_annual=model.mb_model.get_monthly_mb(heights=surface_m, fl_id=-1, year=model.yr, fls=model.fls)
-
+    if mb_elev_feedback=='monthly':
+        mb_annual=model.mb_model.get_monthly_mb(heights=surface_m, fl_id=-1, year=model.yr, fls=model.fls)
+    else:
+        mb_annual=model.mb_model.get_annual_mb(heights=surface_m, fl_id=-1, year=model.yr, fls=model.fls)
     #print("mb_annual is (m ice per second):",mb_annual,"in year",model.yr,"Actually is monthly output")
     Terminus_mb = mb_annual*cfg.SEC_IN_YEAR
     #print("Terminus mass balance is (m per year):",Terminus_mb)
@@ -294,16 +298,16 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
     h_terminus = se_terminus - bed_terminus
     width_terminus = profile[3][last_index]
     tau_y_terminus = tau_y(tau0=tau0, bed_elev=bed_terminus, thick=h_terminus, variable_yield=variable_yield)
-    #print('tau_y_terminus in fa_sermeq_speed_law is:',tau_y_terminus)  
+    print('tau_y_terminus in fa_sermeq_speed_law is:',tau_y_terminus)  
     Hy_terminus = balance_thickness(yield_strength=tau_y_terminus, bed_elev=bed_terminus)
-    #print('Hy_terminus in fa_sermeq_speed_law is:',Hy_terminus)  
+    print('Hy_terminus in fa_sermeq_speed_law is:',Hy_terminus)  
     if isinstance(model_velocity, (int, float)):
         U_terminus = model_velocity
         U_adj = model_velocity
     else:
         U_terminus = model_velocity[last_index]  ## velocity, assuming last point is terminus
         U_adj = model_velocity[last_index - 1]
-    #print(f"the U terminus and adj are (m a-1): {U_terminus} and {U_adj}")
+    print(f"the U terminus and adj are (m a-1): {U_terminus} and {U_adj}")
 
     ## Ice thickness and yield thickness at adjacent point
     se_adj = profile[1][last_index - 1]
@@ -314,7 +318,7 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
     tau_y_adj = tau_y(tau0=tau0, bed_elev=bed_adj, thick=H_adj, variable_yield=variable_yield)
     #print('tau_y_adj in fa_sermeq_speed_law is:',tau_y_adj)
     Hy_adj = balance_thickness(yield_strength=tau_y_adj, bed_elev=bed_adj)
-    #print('Hy_adj in fa_sermeq_speed_law is:',Hy_adj)
+    print('Hy_adj in fa_sermeq_speed_law is:',Hy_adj)
     # Gradients
     dx_term = profile[0][last_index] - profile[0][last_index - 1]  ## check grid spacing close to terminus
     if dx_term <= 0.0 :
@@ -342,13 +346,14 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
         ## Group the terms
         dLdt_numerator = terminus_mb - (h_terminus * dUdx) - (U_terminus * dHdx)
         dLdt_denominator = dHydx - dHdx  ## TODO: compute dHydx
+        print('dLdt_numerator',dLdt_numerator)
+        print('dLdt_denominator',dLdt_denominator)
         dLdt_viscoplastic = dLdt_numerator / dLdt_denominator
         # if dLdt_denominator < 0:
         #     raise RuntimeError('DHYDX-DHDX IS LESS THEN ZERO')
         # elif dLdt_denominator == 0:
         #     raise RuntimeError('DHYDX-DHDX IS ZERO')
-        #print('dLdt_numerator',dLdt_numerator)
-        #print('dLdt_denominator',dLdt_denominator)
+
         # fa_viscoplastic = dLdt_viscoplastic -U_terminus  ## frontal ablation rate
         
         # try:
@@ -537,6 +542,8 @@ class CalvingFluxBasedModelJanRt(FlowlineModel):
 
         # length change rate
         self.length_change_rate_myr = 0.
+        # velocity at the front
+        self.velocity_at_calving_front_myr = 0.
 
         # Stretching distance (or stress coupling length) for frontal dynamics
         if self.do_calving:
@@ -687,6 +694,7 @@ class CalvingFluxBasedModelJanRt(FlowlineModel):
             self.calving_flux = 0.
             self.discharge = 0.
             self.length_change_rate_myr = 0.
+            self.velocity_at_calving_front_myr = 0.
 
             A = self.glen_a
             N = self.glen_n
@@ -821,11 +829,14 @@ class CalvingFluxBasedModelJanRt(FlowlineModel):
                             # Transit the unit of tau0 to Pa, based on the equation self.calving_k= calving_k/cfg.SEC_IN_YEAR
                             # tau0 = self.calving_k * cfg.SEC_IN_YEAR
                             s_fa = self.calving_law(self, last_above_wl,v_scaling = 1, verbose = False,tau0 = k*cfg.SEC_IN_YEAR,
-                                                variable_yield=self.variable_yield, mu = 0.01,trim_profile = 1)
+                                                variable_yield=self.variable_yield, mu = 0.01,trim_profile = 1,mb_elev_feedback = self.mb_elev_feedback)
                             calving_flux = s_fa ['Sermeq_fa']*s_fa['Thickness_termi']*s_fa['Width_termi']/cfg.SEC_IN_YEAR
                             # length_change_rate
                             dLdt = s_fa['dLdt']
                             self.length_change_rate_myr = dLdt
+                            # velocity at the calving front
+                            U_term = s_fa['Velocity_termi']
+                            self.velocity_at_calving_front_myr = U_term
                         except RuntimeError:
                             traceback.print_exception(*sys.exc_info())
                     else:
