@@ -237,7 +237,7 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
     
     # u_stag[-1] is the main flowline
     velocity_m = model.u_stag[-1]*cfg.SEC_IN_YEAR
-    #print('velocity_m is', velocity_m)
+    #print('velocity_m along the flowline is', velocity_m)
     x_m = flowline.dis_on_line*flowline.map_dx
     #print('x_m in fa_sermq_law is :',x_m)
 
@@ -251,7 +251,7 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
     if mb_elev_feedback=='monthly':
         mb_annual=model.mb_model.get_monthly_mb(heights=surface_m, fl_id=-1, year=model.yr, fls=model.fls)
     else:
-        mb_annual=model.mb_model.get_annual_mb(heights=surface_m, fl_id=-1, year=model.yr, fls=model.fls)
+       mb_annual=model.mb_model.get_annual_mb(heights=surface_m, fl_id=-1, year=model.yr, fls=model.fls)
     #print("mb_annual is (m ice per second):",mb_annual,"in year",model.yr,"Actually is monthly output")
     Terminus_mb = mb_annual*cfg.SEC_IN_YEAR
     #print("Terminus mass balance is (m per year):",Terminus_mb)
@@ -315,6 +315,7 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
     #print("the surface at the grid backbefore the terminus (adj) (m a.s.l.) is :" ,se_adj)
     #print("the bed at the grid backbefore the terminus (adj) (m a.s.l.) is :" ,bed_adj)
     H_adj = se_adj - bed_adj
+    print("H_adj in fa_sermeq_speed_law is :",H_adj,"h_terminus in fa_sermeq_speed_law is :",h_terminus)
     tau_y_adj = tau_y(tau0=tau0, bed_elev=bed_adj, thick=H_adj, variable_yield=variable_yield)
     #print('tau_y_adj in fa_sermeq_speed_law is:',tau_y_adj)
     Hy_adj = balance_thickness(yield_strength=tau_y_adj, bed_elev=bed_adj)
@@ -329,6 +330,7 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
     dHydx = (Hy_terminus - Hy_adj) / dx_term
     # if dHydx <= 0.0 :
     #     raise RuntimeError('DHYDX_TERM IS LESS THEN ZERO')
+    print("dHdx is :",dHdx,"dHydx is :",dHydx)
     if np.isnan(U_terminus) or np.isnan(U_adj):
         dUdx = np.nan  ## velocity gradient
         ## Group the terms
@@ -829,7 +831,7 @@ class CalvingFluxBasedModelJanRt(FlowlineModel):
                             # Transit the unit of tau0 to Pa, based on the equation self.calving_k= calving_k/cfg.SEC_IN_YEAR
                             # tau0 = self.calving_k * cfg.SEC_IN_YEAR
                             s_fa = self.calving_law(self, last_above_wl,v_scaling = 1, verbose = False,tau0 = k*cfg.SEC_IN_YEAR,
-                                                variable_yield=self.variable_yield, mu = 0.01,trim_profile = 1,mb_elev_feedback = self.mb_elev_feedback)
+                                                variable_yield=self.variable_yield, mu = 0.01,trim_profile = 0,mb_elev_feedback = self.mb_elev_feedback)
                             calving_flux = s_fa ['Sermeq_fa']*s_fa['Thickness_termi']*s_fa['Width_termi']/cfg.SEC_IN_YEAR
                             # length_change_rate
                             dLdt = s_fa['dLdt']
