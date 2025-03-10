@@ -546,6 +546,10 @@ class CalvingFluxBasedModelJanRt(FlowlineModel):
         self.length_change_rate_myr = 0.
         # velocity at the front
         self.velocity_at_calving_front_myr = 0.
+        # thickness at the front
+        self.thickness_at_calving_front_m = 0. # Just for the initial value, not used, will be updated by the model
+        # width at the front
+        self.width_at_calving_front_m = 0. # Just for the initial value, not used, will be updated by the model
 
         # Stretching distance (or stress coupling length) for frontal dynamics
         if self.do_calving:
@@ -697,6 +701,9 @@ class CalvingFluxBasedModelJanRt(FlowlineModel):
             self.discharge = 0.
             self.length_change_rate_myr = 0.
             self.velocity_at_calving_front_myr = 0.
+            self.thickness_at_calving_front_m = 0. # Just for the initial value, not used, will be updated by the model
+            self.velocity_at_bottom_myr = 0. # Just for the initial value, not used, will be updated by the model
+            self.width_at_calving_front_m = 0. # Just for the initial value, not used, will be updated by the model
 
             A = self.glen_a
             N = self.glen_n
@@ -839,6 +846,8 @@ class CalvingFluxBasedModelJanRt(FlowlineModel):
                             # velocity at the calving front
                             U_term = s_fa['Velocity_termi']
                             self.velocity_at_calving_front_myr = U_term
+                            self.thickness_at_calving_front_m = s_fa['Thickness_termi']
+                            self.width_at_calving_front_m = s_fa['Width_termi']
                         except RuntimeError:
                             traceback.print_exception(*sys.exc_info())
                     else:
