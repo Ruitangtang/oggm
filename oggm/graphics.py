@@ -294,7 +294,7 @@ def plot_googlemap(gdirs, ax=None, figsize=None):
         yy.extend(gdir.extent_ll[1])
 
     gm = salem.GoogleVisibleMap(xx, yy,
-                                key='AIzaSyDWG_aTgfU7CeErtIzWfdGxpStTlvDXV_o')
+                                key='AIzaSyB9pzNQBuCRGxJRlhNxKXcgH2yPrtaYrGY')
 
     img = gm.get_vardata()
     cmap = salem.Map(gm.grid, countries=False, nx=gm.grid.nx)
