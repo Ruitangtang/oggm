@@ -1391,6 +1391,16 @@ class FlowlineModel(object):
             diag_ds['velocity_at_calving_front_myr'].attrs['description'] = 'Glacier velocity at calving front'
             diag_ds['velocity_at_calving_front_myr'].attrs['unit'] ='m a-1'
 
+        if 'thickness_at_calvingfront' in ovars:
+            diag_ds['thickness_at_calving_front_m'] = ('time', np.zeros(nm) * np.NaN)
+            diag_ds['thickness_at_calving_front_m'].attrs['description'] = 'Glacier thickness at calving front'
+            diag_ds['thickness_at_calving_front_m'].attrs['unit'] = 'm'
+
+        if 'width_at_calvingfront' in ovars:
+            diag_ds['width_at_calving_front_m'] = ('time', np.zeros(nm) * np.NaN)
+            diag_ds['width_at_calving_front_m'].attrs['description'] = 'Glacier width at calving front'
+            diag_ds['width_at_calving_front_m'].attrs['unit'] = 'm'
+
         if 'calving' in ovars:
             diag_ds['calving_m3'] = ('time', np.zeros(nm) * np.NaN)
             diag_ds['calving_m3'].attrs['description'] = ('Total accumulated '
@@ -1733,6 +1743,10 @@ class FlowlineModel(object):
                 diag_ds['length_change_rate_myr'].data[i] = self.length_change_rate_myr
             if 'velocity_at_calvingfront' in ovars:
                 diag_ds['velocity_at_calving_front_myr'].data[i] = self.velocity_at_calving_front_myr
+            if 'thickness_at_calvingfront' in ovars:
+                diag_ds['thickness_at_calving_front_m'].data[i] = self.thickness_at_calving_front_m
+            if 'width_at_calvingfront' in ovars:
+                diag_ds['width_at_calving_front_m'].data[i] = self.width_at_calving_front_m
             if 'calving' in ovars:
                 diag_ds['calving_m3'].data[i] = self.calving_m3_since_y0
             if 'calving_rate' in ovars:
