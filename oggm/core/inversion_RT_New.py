@@ -688,14 +688,16 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
             # fl_id = 0
             # print("fl_id is :",fl_id)
             # print("######################### before call the get_annual_mb function #########################")
-            mean_mb_annual=surface_m * 0.
-            for y in range(len(mb_years)):
-                mean_mb_annual+=mb_model.get_annual_mb(fls = fls, fl_id = -1, heights=surface_m, year=y)
-                print('y in fa_sermeq_speed_law_inv is :',y)
-            mean_mb_annual=mean_mb_annual/float(len(mb_years))
-            print("mean_mb_annual is (m ice per second):",mean_mb_annual)
+            # mean_mb_annual=surface_m * 0.
+            # for y in range(len(mb_years)):
+            #     mean_mb_annual+=mb_model.get_annual_mb(fls = fls, fl_id = -1, heights=surface_m, year=y)
+            #     print('y in fa_sermeq_speed_law_inv is :',y)
+            # mean_mb_annual=mean_mb_annual/float(len(mb_years))
+            # print("mean_mb_annual is (m ice per second):",mean_mb_annual)
 
-            Terminus_mb = mean_mb_annual*cfg.SEC_IN_YEAR
+            # Terminus_mb = mean_mb_annual*cfg.SEC_IN_YEAR
+            mb_annual=flowline.apparent_mb
+            Terminus_mb = mb_annual/1000 # convert the unit from mm a-1 to m a-1, the set_apparent_mb function in Centerline in OGGM is in mm w.e. a-1
             # Terminus_mb = mean_mb_annual/1000 # convert the unit from mm a-1 to m a-1
 
             print("Terminus_mb is (m a-1  / m ice per year):",Terminus_mb)
