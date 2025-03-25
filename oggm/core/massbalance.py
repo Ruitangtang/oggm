@@ -1916,7 +1916,7 @@ def _check_terminus_mass_flux(gdir, fls):
 
 
 @entity_task(log, writes=['inversion_flowlines', 'linear_mb_params'])
-def apparent_mb_from_linear_mb(gdir, mb_gradient=3., ela_h=None):
+def apparent_mb_from_linear_mb(gdir, mb_gradient=3., ela_h=None,filesuffix=''):
     """Compute apparent mb from a linear mass balance assumption (for testing).
 
     This is for testing currently, but could be used as alternative method
@@ -1926,6 +1926,12 @@ def apparent_mb_from_linear_mb(gdir, mb_gradient=3., ela_h=None):
     ----------
     gdir : :py:class:`oggm.GlacierDirectory`
         the glacier directory to process
+    mb_gradient : float
+        the gradient of the mass balance in mm m-1 yr-1
+    ela_h : float
+        the ELA in m a.s.l. (if None, will be optimized)
+    filesuffix: str
+        suffix to append to the inversion_flowlines file
     """
 
     # Do we have a calving glacier?
@@ -1960,15 +1966,15 @@ def apparent_mb_from_linear_mb(gdir, mb_gradient=3., ela_h=None):
 
     # Check and write
     _check_terminus_mass_flux(gdir, fls)
-    gdir.write_pickle(fls, 'inversion_flowlines')
+    gdir.write_pickle(fls, 'inversion_flowlines', filesuffix=filesuffix)
     gdir.write_pickle({'ela_h': ela_h, 'grad': mb_gradient},
-                      'linear_mb_params')
+                      'linear_mb_params', filesuffix=filesuffix)
 
 
 @entity_task(log, writes=['inversion_flowlines'])
 def apparent_mb_from_any_mb(gdir, mb_model=None,
                             mb_model_class=MonthlyTIModel,
-                            mb_years=None):
+                            mb_years=None,filesuffix=''):
     """Compute apparent mb from an arbitrary mass balance profile.
 
     This searches for a mass balance residual to add to the mass balance
@@ -1991,6 +1997,8 @@ def apparent_mb_from_any_mb(gdir, mb_model=None,
         geodetic MB period, i.e. PARAMS['geodetic_mb_period'].
         It does not matter much for the final result, but it should be a
         period long enough to have a representative MB gradient.
+    filesuffix: str
+        suffix to append to the inversion
     """
 
     # Do we have a calving glacier?
@@ -2064,8 +2072,8 @@ def apparent_mb_from_any_mb(gdir, mb_model=None,
         #print("fl_id is:",fl_id)
     # Check and write
     _check_terminus_mass_flux(gdir, fls)
-    gdir.add_to_diagnostics('apparent_mb_from_any_mb_residual', residual)
-    gdir.write_pickle(fls, 'inversion_flowlines')
+    gdir.add_to_diagnostics('apparent_mb_from_any_mb_residual', residual,filesuffix=filesuffix)
+    gdir.write_pickle(fls, 'inversion_flowlines',filesuffix=filesuffix)
     #print("apparent_mb_from_any_mb is successful")
 
 
