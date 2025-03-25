@@ -1124,6 +1124,7 @@ class CalvingFluxBasedModelJanRt(FlowlineModel):
         print("after step , self.t is :",self.t)
         return dt
 
+
     def get_diagnostics(self, fl_id=-1):
         """Obtain model diagnostics in a pandas DataFrame.
 
