@@ -4201,11 +4201,11 @@ def init_present_time_glacier(gdir, filesuffix='',
     """
 
     # Some vars
-    invs = gdir.read_pickle('inversion_output')
+    invs = gdir.read_pickle('inversion_output',filesuffix=filesuffix)
 
     map_dx = gdir.grid.dx
     def_lambda = cfg.PARAMS['trapezoid_lambdas']
-    cls = gdir.read_pickle('inversion_flowlines')
+    cls = gdir.read_pickle('inversion_flowlines',filesuffix=filesuffix)
 
     # Fill the tributaries
     new_fls = []
