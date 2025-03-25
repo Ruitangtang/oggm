@@ -3118,7 +3118,7 @@ class GlacierDirectory(object):
                 fp += '.gz'
         return os.path.exists(fp)
 
-    def add_to_diagnostics(self, key, value):
+    def add_to_diagnostics(self, key, value,filesuffix=''):
         """Write a key, value pair to the gdir's runtime diagnostics.
 
         Parameters
@@ -3127,29 +3127,38 @@ class GlacierDirectory(object):
             dict entry key
         value : str or number
             dict entry value
+        filesuffix : str
+            append a suffix to the filename (useful for experiments).
         """
 
-        d = self.get_diagnostics()
+        d = self.get_diagnostics(filesuffix=filesuffix)
         d[key] = value
-        with open(self.get_filepath('diagnostics'), 'w') as f:
+        with open(self.get_filepath('diagnostics',filesuffix = filesuffix), 'w') as f:
             json.dump(d, f)
 
-    def get_diagnostics(self):
+
+    def get_diagnostics(self,filesuffix=''):
         """Read the gdir's runtime diagnostics.
+
+        parameters
+        ----------
+        filesuffix : str
+            append a suffix to the filename (useful for experiments).
 
         Returns
         -------
         the diagnostics dict
         """
         # If not there, create an empty one
-        if not self.has_file('diagnostics'):
-            with open(self.get_filepath('diagnostics'), 'w') as f:
+        if not self.has_file('diagnostics',filesuffix = filesuffix):
+            with open(self.get_filepath('diagnostics',filesuffix = filesuffix), 'w') as f:
                 json.dump(dict(), f)
 
         # Read and return
-        with open(self.get_filepath('diagnostics'), 'r') as f:
+        with open(self.get_filepath('diagnostics',filesuffix=filesuffix), 'r') as f:
             out = json.load(f)
         return out
+
 
     def read_pickle(self, filename, use_compression=None, filesuffix=''):
         """Reads a pickle located in the directory.
