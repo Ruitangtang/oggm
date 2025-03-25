@@ -35,6 +35,7 @@ import os
 import pickle
 import sys
 import traceback
+import pdb
 
 
 # External libs
@@ -70,7 +71,8 @@ def prepare_for_inversion(gdir, add_debug_var=False,
                           invert_with_rectangular=True,
                           invert_all_rectangular=False,
                           invert_with_trapezoid=True,
-                          invert_all_trapezoid=False):
+                          invert_all_trapezoid=False,
+                          filesuffix=''):
     """Prepares the data needed for the inversion.
 
     Mostly the mass flux and slope angle, the rest (width, height) was already
@@ -80,10 +82,22 @@ def prepare_for_inversion(gdir, add_debug_var=False,
     ----------
     gdir : :py:class:`oggm.GlacierDirectory`
         the glacier directory to process
+    add_debug_var : bool
+        add some debug variables to the inversion input
+    invert_with_rectangular : bool
+        if False, the inversion will not consider rectangular flowlines
+    invert_all_rectangular : bool
+        if True, all flowlines will be considered rectangular
+    invert_with_trapezoid : bool
+        if False, the inversion will not consider trapezoidal flowlines
+    invert_all_trapezoid : bool
+        if True, all flowlines will be considered trapezoidal
+    filesuffix : str
+        add a suffix to the output file
     """
 
     # variables
-    fls = gdir.read_pickle('inversion_flowlines')
+    fls = gdir.read_pickle('inversion_flowlines', filesuffix=filesuffix)
 
     towrite = []
     for fl in fls:
@@ -158,7 +172,7 @@ def prepare_for_inversion(gdir, add_debug_var=False,
         towrite.append(cl_dic)
 
     # Write out
-    gdir.write_pickle(towrite, 'inversion_input')
+    gdir.write_pickle(towrite, 'inversion_input',filesuffix=filesuffix)
     print("prepare_for_inversion is successful")
 
 
@@ -421,7 +435,7 @@ def _vol_below_water(surface_h, bed_h, bed_shape, thick, widths,
 def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_wl=None, v_scaling=1, verbose=False,
                      tau0=1.5, variable_yield='variable', mu=0.01,trim_profile=1,modelprms = None,glacier_rgi_table = None,
                      hindcast = None, debug = None, debug_refreeze = None, option_areaconstant = None,
-                     inversion_filter = None,water_depth = None, water_level = None):
+                     inversion_filter = None,water_depth = None, water_level = None,filesuffix=''):
     """
     This function is used to calculate frontal ablation given ice speed forcing,
     for lake-terminating and tidewater glaciers
@@ -517,7 +531,8 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
     ## Global constants
     G = 9.8  # acceleration due to gravity in m/s^2
     RHO_ICE = 900.0  # ice density kg/m^3
-    RHO_SEA = 1020.0  # seawater density kg/m^3
+    RHO_SEA = 1020.0  # seawater density kg/m^3 
+    RHO_WATER = 1000.0  # freshwater density kg/m^3
     #water_level = mb_model.water_level
     print("water_level in the fa_sermeq_speed_law_inv at the start is (m) :",water_level)
     print("variable_yield is ", variable_yield)
@@ -612,11 +627,11 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
 
     # ---------------------------------------------------------------------------
     # calculate frontal ablation based on the ice thickness, speed at the terminus
-    fls = gdir.read_pickle('inversion_flowlines')
+    fls = gdir.read_pickle('inversion_flowlines',filesuffix=filesuffix)
     glacier_area = fls[-1].widths_m * fls[-1].dx_meter
     flowline=fls[-1]
     #print("dir of flowline in inversion_flowlines is:",dir(flowline))
-    cls = gdir.read_pickle('inversion_output')
+    cls = gdir.read_pickle('inversion_output',filesuffix=filesuffix)
     cl = cls[-1]
     #print("dir of the cl in inversion_output:",dir(cl))
     surface_m = flowline.surface_h
@@ -696,16 +711,20 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
             # print("mean_mb_annual is (m ice per second):",mean_mb_annual)
 
             # Terminus_mb = mean_mb_annual*cfg.SEC_IN_YEAR
-            mb_annual=flowline.apparent_mb
-            Terminus_mb = mb_annual/1000 # convert the unit from mm a-1 to m a-1, the set_apparent_mb function in Centerline in OGGM is in mm w.e. a-1
-            # Terminus_mb = mean_mb_annual/1000 # convert the unit from mm a-1 to m a-1
-
+            #Note: In the function, fa_sermeq_speed_law_inv, change the mb_annual = flowline.apparent_mb,
+            # to make consistent with the apparent flux of the flowline, in the bed inversion process
+            mb_annual=flowline.apparent_mb # the unit is mm w.e. a-1 or kg m-2 a-1 of ice
+            
+            # convert the unit from kg m-2 a-1 of ice to m a-1 of ice, 
+            Terminus_mb = mb_annual/RHO_ICE
             print("Terminus_mb is (m a-1  / m ice per year):",Terminus_mb)
             # slice up to index+1 to include the last nonzero value
             # profile: NDarray
             #     The current profile (x, surface, bed,width) as calculated by the base model
             #     Unlike core SERMeQ, these should be DIMENSIONAL [m].
             print("The last above wl is (In fa_sermeq_speed_law_inv) :",last_above_wl)
+            print("WATER LEVEL IS :",water_level)
+            #pdb.set_trace()
             profile=(x_m[:last_above_wl+1],
                         surface_m[:last_above_wl+1],
                         bed_m[:last_above_wl+1],width_m[:last_above_wl+1])
@@ -917,7 +936,7 @@ def mass_conservation_inversion(gdir, glen_a=None, fs=None, write=True,
 
     out_volume = 0.
     do_calving = cfg.PARAMS['use_kcalving_for_inversion'] and gdir.is_tidewater
-    cls = gdir.read_pickle('inversion_input')
+    cls = gdir.read_pickle('inversion_input',filesuffix=filesuffix)
     # for cl in cls:
     #     # Clip slope to avoid negative and small slopes
     #     slope = cl['slope_angle']
@@ -1110,8 +1129,8 @@ def mass_conservation_inversion(gdir, glen_a=None, fs=None, write=True,
 
     if write:
         gdir.write_pickle(cls, 'inversion_output', filesuffix=filesuffix)
-        gdir.add_to_diagnostics('inversion_glen_a', glen_a)
-        gdir.add_to_diagnostics('inversion_fs', fs)
+        gdir.add_to_diagnostics('inversion_glen_a', glen_a,filesuffix=filesuffix)
+        gdir.add_to_diagnostics('inversion_fs', fs,filesuffix=filesuffix)
 
     #print("==================== mass_conservation_inversion is successful ====================")
 
@@ -1586,7 +1605,7 @@ def distribute_thickness_interp(gdir, add_slope=True, smooth_radius=None,
 def calving_flux_from_depth(gdir, mb_model=None,mb_years=None,k=None, water_level=None, water_depth=None,
                             thick=None, fixed_water_depth=False,calving_law_inv=None,modelprms = None,
                             glacier_rgi_table = None, hindcast = None, debug = None, debug_refreeze = None,
-                            option_areaconstant = None, inversion_filter = False):
+                            option_areaconstant = None, inversion_filter = False,filesuffix=''):
     """Finds a calving flux from the calving front thickness.
 
     Approach based on Huss and Hock, (2015) and Oerlemans and Nick (2005).
@@ -1622,6 +1641,8 @@ def calving_flux_from_depth(gdir, mb_model=None,mb_years=None,k=None, water_leve
             future OGGM versions.
             1. k-calving law
             2. fa_sermq_speed_law_inv
+    filesuffix : str
+        add a suffix to the output file (optional)
     
     # parameters for the mb_model, used in the function fa_sermeq_speed_law_inv
     ----------
@@ -1656,7 +1677,7 @@ def calving_flux_from_depth(gdir, mb_model=None,mb_years=None,k=None, water_leve
     
     print("The inversion calving k is:",k)
     # Read necessary data
-    fl = gdir.read_pickle('inversion_flowlines')[-1]
+    fl = gdir.read_pickle('inversion_flowlines',filesuffix=filesuffix)[-1]
 
     # Altitude at the terminus and frontal width
     free_board = utils.clip_min(fl.surface_h[-1], 0) - water_level
@@ -1664,7 +1685,7 @@ def calving_flux_from_depth(gdir, mb_model=None,mb_years=None,k=None, water_leve
 
     # Calving formula
     if thick is None:
-        cl = gdir.read_pickle('inversion_output')[-1]
+        cl = gdir.read_pickle('inversion_output',filesuffix = filesuffix)[-1]
         thick = cl['thick'][-1]
         print("the thick in inversion is",thick)
     if water_depth is None:
@@ -1723,7 +1744,8 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
                                        water_level=None,
                                        glen_a=None, fs=None,calving_law_inv=None,
                                        modelprms =None,glacier_rgi_table = None,hindcast=None,debug =None,
-                                       debug_refreeze = None,option_areaconstant=None, inversion_filter = None):
+                                       debug_refreeze = None,option_areaconstant=None, inversion_filter = None,
+                                       filesuffix=''):
     """Optimized search for a calving flux compatible with the bed inversion.
 
     See Recinos et al. (2019) for details. This task is an update to
@@ -1754,6 +1776,8 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
             future OGGM versions.
             1. fa_sermq_speed_law_inv (default)
             2. None (k-calving law)
+    filesuffix : str
+        add a suffix to the output file (optional)
     # Parameter for the mb_model (Here is for PyGEMMassBalance), used in the calving_flux_from_depth
     ----------
     modelprms : dict
@@ -1796,18 +1820,19 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
     with utils.DisableLogger():
         try:
             massbalance.apparent_mb_from_any_mb(gdir, mb_model=mb_model,
-                                            mb_years=mb_years)
+                                            mb_years=mb_years,filesuffix=filesuffix)
             print("apparent_mb_from_any_mb running successfully")
         except:
             print("Something is wrong with the function apparent_mb_from_any_mb")
             print(traceback.format_exc())
-        prepare_for_inversion(gdir)
+        prepare_for_inversion(gdir,filesuffix=filesuffix)
         try:
             v_ref = mass_conservation_inversion(gdir, water_level=water_level,
-                                            glen_a=glen_a, fs=fs)
+                                            glen_a=glen_a, fs=fs,filesuffix=filesuffix)
             print(" mass_conservation_inversion running successfully")
         except:
             print("Something is wrong with the function mass_conservation_inversion")
+            print(traceback.format_exc())
         # try:
         #     workflow.calibrate_inversion_from_consensus(gdir, apply_fs_on_mismatch=True,filter_inversion_output =True,volume_m3_reference=None)
         # except:
@@ -1816,12 +1841,12 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
         # v_ref = tasks.get_inversion_volume(gdir)    
 
     # Store for statistics
-    gdir.add_to_diagnostics('volume_before_calving', v_ref)
+    gdir.add_to_diagnostics('volume_before_calving', v_ref,filesuffix=filesuffix)
     print("volume before calving is:", v_ref)
 
 
     # Get the relevant variables
-    cls = gdir.read_pickle('inversion_input')[-1]
+    cls = gdir.read_pickle('inversion_input',filesuffix = filesuffix)[-1]
     slope = cls['slope_angle'][-1]
     width = cls['width'][-1]
 
@@ -1834,7 +1859,7 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
 
     # Check that water level is within given bounds
     print("water level is :",water_level)
-    cl = gdir.read_pickle('inversion_output')[-1]
+    cl = gdir.read_pickle('inversion_output',filesuffix =filesuffix)[-1]
     log.workflow('({}) thickness, freeboard before water and frontal ablation:'
                  ' {}, {}'.format(gdir.rgi_id, cl['thick'][-1], cls['hgt'][-1]))
     thick0 = cl['thick'][-1]
@@ -1888,7 +1913,7 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
                                      glacier_rgi_table = glacier_rgi_table,hindcast = hindcast,
                                      debug = debug, debug_refreeze = debug_refreeze,
                                      option_areaconstant = option_areaconstant,
-                                     inversion_filter = inversion_filter)
+                                     inversion_filter = inversion_filter,filesuffix=filesuffix)
 
         flux = fl['flux'] * 1e9 / cfg.SEC_IN_YEAR
         thick = fl['thick']
@@ -2062,7 +2087,7 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
         water_level= th - (thick0-water_depth)
 
     out = calving_flux_from_depth(gdir, water_level=water_level,water_depth= water_depth,mb_model=mb_model,mb_years=mb_years,  k=calving_k,
-                                  calving_law_inv=calving_law_inv)
+                                  calving_law_inv=calving_law_inv,filesuffix=filesuffix)
     # Find volume with water and frontal ablation
     f_calving = out['flux']
 
@@ -2072,10 +2097,10 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
     print("The inversion calving rate now is (km3 yr-1):",gdir.inversion_calving_rate)
     with utils.DisableLogger():
         massbalance.apparent_mb_from_any_mb(gdir, mb_model=mb_model,
-                                            mb_years=mb_years)
-        prepare_for_inversion(gdir)
+                                            mb_years=mb_years,filesuffix=filesuffix)
+        prepare_for_inversion(gdir,filesuffix=filesuffix)
         mass_conservation_inversion(gdir, water_level=water_level,
-                                    glen_a=glen_a, fs=fs, min_rel_h=opt)
+                                    glen_a=glen_a, fs=fs, min_rel_h=opt,filesuffix=filesuffix)
         # try:
         #     workflow.calibrate_inversion_from_consensus(gdir, apply_fs_on_mismatch=True,filter_inversion_output =True,volume_m3_reference=None)
         # except:
@@ -2084,9 +2109,9 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
 
     out = calving_flux_from_depth(gdir, water_level=water_level,water_depth=water_depth, k=calving_k,
                                   mb_model=mb_model,mb_years=mb_years,
-                                  calving_law_inv=calving_law_inv)
+                                  calving_law_inv=calving_law_inv,filesuffix=filesuffix)
 
-    fl = gdir.read_pickle('inversion_flowlines')[-1]
+    fl = gdir.read_pickle('inversion_flowlines',filesuffix=filesuffix)[-1]
     f_calving = (fl.flux[-1] * (gdir.grid.dx ** 2) * 1e-9 /
                  cfg.PARAMS['ice_density'])
     
@@ -2114,7 +2139,7 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
             if isinstance(v,np.ndarray):
                 print("Key :",k,"Value :",v)
                 v = v.tolist()
-            gdir.add_to_diagnostics(k, v)
+            gdir.add_to_diagnostics(k, v,filesuffix=filesuffix)
     except:
         print(traceback.format_exc())
 
