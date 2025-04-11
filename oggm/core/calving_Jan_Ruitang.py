@@ -371,9 +371,6 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
         #         raise NegativeValueError("Something is wrong, right now the calving in negative, which should be positive or zero")
         # except NegativeValueError as e:
         #     print ("The glacier is advancing, and the advancing rate is larger than ice flow speed at the terminus, please check ")
-            
-
-
     SQFA = {'se_terminus': se_terminus,
             'bed_terminus': bed_terminus,
             'Thickness_termi': h_terminus,
