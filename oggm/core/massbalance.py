@@ -2059,8 +2059,8 @@ def apparent_mb_from_any_mb(gdir, mb_model=None,
         fl.set_apparent_mb(mbz * cfg.SEC_IN_YEAR * rho + residual,
                            is_calving=is_calving)
         print('*****************************************************************')
-        print("the apparent mb is set, and the apparent_mb  is (mm w.e. a-1) :",fl.apparent_mb)
-        print("the flux (mm w.e. a-1) is  :",fl.flux)
+        #print("the apparent mb is set, and the apparent_mb  is (mm w.e. a-1) :",fl.apparent_mb)
+        #print("the flux (mm w.e. a-1) is  :",fl.flux)
         print("the flux out (mm w.e. a-1) is :",fl.flux_out)
         print("correct the flux is:",fl.flux_needs_correction)
         print('*****************************************************************')
