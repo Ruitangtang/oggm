@@ -779,8 +779,12 @@ def date_to_floatyear(y, m):
         the month
     """
 
-    return (np.asanyarray(y) + (np.asanyarray(m) - 1) *
-            SEC_IN_MONTH / SEC_IN_YEAR)
+    # return (np.asanyarray(y) + (np.asanyarray(m) - 1) *
+    #         SEC_IN_MONTH / SEC_IN_YEAR)
+    y = np.asanyarray(y)
+    m = np.asanyarray(m)
+    month_index = y * 12 + (m - 1)
+    return month_index / 12.0
 
 
 def hydrodate_to_calendardate(y, m, start_month=None):
@@ -850,7 +854,11 @@ def monthly_timeseries(y0, y1=None, ny=None, include_last_year=False):
     Parameters
     ----------
     """
-
+    if isinstance(y0, xr.DataArray):
+        y0 = y0.values
+    if isinstance(y1, xr.DataArray):
+        y1 = y1.values
+        
     if y1 is not None:
         years = np.arange(np.floor(y0), np.floor(y1) + 1)
     elif ny is not None:
