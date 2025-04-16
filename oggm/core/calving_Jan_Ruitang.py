@@ -69,7 +69,7 @@ def k_calving_law(model, flowline, last_above_wl):
     return q_calving
 
 
-def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
+def fa_sermeq_speed_law(model,last_above_wl, mb_current = None,v_scaling=1, verbose=False,
                      tau0=1.5, variable_yield=None, mu=0.01,
                      trim_profile=1,mb_elev_feedback='monthly'):
     """
@@ -91,6 +91,8 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
     last_above_wl : int
         the index of the last pixel above water (in case you need to know
         where it is).
+    mb_current : float, optional, array
+        the current mass balance (has been computed by the model), along the flowline
     v_scaling: float
         velocity scaling factor, >0, default is 1
     Terminus_mb : array
@@ -252,6 +254,8 @@ def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
         mb_annual=model.mb_model.get_monthly_mb(heights=surface_m, fl_id=-1, year=model.yr, fls=model.fls)
     else:
        mb_annual=model.mb_model.get_annual_mb(heights=surface_m, fl_id=-1, year=model.yr, fls=model.fls)
+
+    #mb_annual=mb_current
     #print("mb_annual is (m ice per second):",mb_annual,"in year",model.yr,"Actually is monthly output")
     Terminus_mb = mb_annual*cfg.SEC_IN_YEAR
     #print("Terminus mass balance is (m per year):",Terminus_mb)
@@ -853,7 +857,7 @@ class CalvingFluxBasedModelJanRt(FlowlineModel):
                     self.calving_flux = utils.clip_min(0, calving_flux)
                     
 
-            # Usual ice dynamics
+             # Usual ice dynamics
             else:
                 rhogh = (self.rho*G*slope_stag)**N
                 u_drag[:] = (thick_stag**(N+1)) * self._fd * rhogh * \
@@ -901,9 +905,39 @@ class CalvingFluxBasedModelJanRt(FlowlineModel):
             # We compute MB in this loop, before mass-redistribution occurs,
             # so that MB models which rely on glacier geometry to decide things
             # (like PyGEM) can do wo with a clean glacier state
+            # mb_current = self.get_mb(fl.surface_h, self.yr,
+            #                        fl_id=fl_id, fls=self.fls, store_monthly_step=True)
+            # mbs.append(mb_current)
             mbs.append(self.get_mb(fl.surface_h, self.yr,
                                    fl_id=fl_id, fls=self.fls,store_monthly_step=True))
+            # calculate the calving rate
+            # if self.do_calving and fl.has_ice() and np.any(ice_below_wl):
+            #     k = self.calving_k
+            #     print("calving_k before the fa_sermeq_speed_law is :",k)
+            #     if self.calving_law == fa_sermeq_speed_law:
+            #         print("before calving")
+            #         print("model.yr is :",self.yr)
+            #         try:
+            #             # Transit the unit of tau0 to Pa, based on the equation self.calving_k= calving_k/cfg.SEC_IN_YEAR
+            #             # tau0 = self.calving_k * cfg.SEC_IN_YEAR
+            #             s_fa = self.calving_law(self, last_above_wl,mb_current = mb_current,v_scaling = 1, verbose = False,tau0 = k*cfg.SEC_IN_YEAR,
+            #                                 variable_yield=self.variable_yield, mu = 0.01,trim_profile = 0,mb_elev_feedback = self.mb_elev_feedback)
+            #             calving_flux = s_fa ['Sermeq_fa']*s_fa['Thickness_termi']*s_fa['Width_termi']/cfg.SEC_IN_YEAR
+            #             # length_change_rate
+            #             dLdt = s_fa['dLdt']
+            #             self.length_change_rate_myr = dLdt
+            #             # velocity at the calving front
+            #             U_term = s_fa['Velocity_termi']
+            #             self.velocity_at_calving_front_myr = U_term
+            #             self.thickness_at_calving_front_m = s_fa['Thickness_termi']
+            #             self.width_at_calving_front_m = s_fa['Width_termi']
+            #         except RuntimeError:
+            #             traceback.print_exception(*sys.exc_info())
+            #     else:
+            #         calving_flux = self.calving_law(self, fl, last_above_wl)
 
+            #     self.calving_flux = utils.clip_min(0, calving_flux)
+    
         # Time step
         if self.fixed_dt:
             # change only if step dt is larger than the chosen dt
