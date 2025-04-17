@@ -250,13 +250,16 @@ def fa_sermeq_speed_law(model,last_above_wl, mb_current = None,v_scaling=1, verb
     #                                                    mb_model_class=MonthlyTIModel)
     #mb_annual=model.mb_model.get_annual_mb(heights=surface_m, fl_id=-1, year=model.yr, fls=model.fls)
     #  should call the monthly function
-    if mb_elev_feedback=='monthly':
-        mb_annual=model.mb_model.get_monthly_mb(heights=surface_m, fl_id=-1, year=model.yr, fls=model.fls)
-    else:
-       mb_annual=model.mb_model.get_annual_mb(heights=surface_m, fl_id=-1, year=model.yr, fls=model.fls)
+    if mb_current is None:
+        if mb_elev_feedback=='monthly':
+            mb_annual=model.mb_model.get_monthly_mb(heights=surface_m, fl_id=-1, year=model.yr, fls=model.fls)
+        else:
+            mb_annual=model.mb_model.get_annual_mb(heights=surface_m, fl_id=-1, year=model.yr, fls=model.fls)
 
-    #mb_annual=mb_current
-    #print("mb_annual is (m ice per second):",mb_annual,"in year",model.yr,"Actually is monthly output")
+        #print("mb_annual is (m ice per second):",mb_annual,"in year",model.yr,"Actually is monthly output")
+    else:
+        mb_annual=mb_current
+
     Terminus_mb = mb_annual*cfg.SEC_IN_YEAR
     #print("Terminus mass balance is (m per year):",Terminus_mb)
     # slice up to index+1 to include the last nonzero value
@@ -383,7 +386,8 @@ def fa_sermeq_speed_law(model,last_above_wl, mb_current = None,v_scaling=1, verb
             'Velocity_termi': U_terminus,
             'Terminus_mb': terminus_mb,
             'dLdt': dLdt_viscoplastic,
-            'Sermeq_fa': fa_viscoplastic}
+            'Sermeq_fa': fa_viscoplastic,
+            'mb_current': mb_annual}
     if verbose:
         print('For inspection on debugging - all should be DIMENSIONAL (m/a):')
         #         print('profile_length={}'.format(profile_length))
@@ -405,6 +409,7 @@ def fa_sermeq_speed_law(model,last_above_wl, mb_current = None,v_scaling=1, verb
         print('Viscoplastic dLdt={}'.format(dLdt_viscoplastic))
         print('Terminus surface mass balance ma= {}'.format(terminus_mb))
         print('Sermeq frontal ablation ma={}'.format(fa_viscoplastic))
+        print('current_mb={}'.format(mb_annual))
     else:
         pass
     return SQFA
@@ -849,11 +854,15 @@ class CalvingFluxBasedModelJanRt(FlowlineModel):
                             self.velocity_at_calving_front_myr = U_term
                             self.thickness_at_calving_front_m = s_fa['Thickness_termi']
                             self.width_at_calving_front_m = s_fa['Width_termi']
+                            # the current mb
+                            mb_current = s_fa['mb_current']
                         except RuntimeError:
                             traceback.print_exception(*sys.exc_info())
                     else:
                         calving_flux = self.calving_law(self, fl, last_above_wl)
-
+                        mb_current = self.get_mb(fl.surface_h, self.yr,
+                                                fl_id=fl_id, fls=self.fls,store_monthly_step=True)
+                        
                     self.calving_flux = utils.clip_min(0, calving_flux)
                     
 
@@ -869,6 +878,10 @@ class CalvingFluxBasedModelJanRt(FlowlineModel):
                 # Staggered section
                 section_stag[1:-1] = (section[0:-1] + section[1:]) / 2.
                 section_stag[[0, -1]] = section[[0, -1]]
+
+                #current_mb
+                mb_current = self.get_mb(fl.surface_h, self.yr,
+                                        fl_id=fl_id, fls=self.fls,store_monthly_step=True)
 
             # Staggered flux rate
             flux_stag[:] = u_stag * section_stag
@@ -907,10 +920,10 @@ class CalvingFluxBasedModelJanRt(FlowlineModel):
             # (like PyGEM) can do wo with a clean glacier state
             # mb_current = self.get_mb(fl.surface_h, self.yr,
             #                        fl_id=fl_id, fls=self.fls, store_monthly_step=True)
-            # mbs.append(mb_current)
-            mbs.append(self.get_mb(fl.surface_h, self.yr,
-                                   fl_id=fl_id, fls=self.fls,store_monthly_step=True))
-            # calculate the calving rate
+            mbs.append(mb_current)
+            #mbs.append(self.get_mb(fl.surface_h, self.yr,
+            #                       fl_id=fl_id, fls=self.fls,store_monthly_step=True))
+            # # calculate the calving rate
             # if self.do_calving and fl.has_ice() and np.any(ice_below_wl):
             #     k = self.calving_k
             #     print("calving_k before the fa_sermeq_speed_law is :",k)
