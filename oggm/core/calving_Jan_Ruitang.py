@@ -1163,9 +1163,9 @@ class CalvingFluxBasedModelJanRt(FlowlineModel):
             fl.section = section
 
         # Next step
-        print("before step , self.t is :",self.t)
+        # print("before step , self.t is :",self.t)
         self.t += dt
-        print("after step , self.t is :",self.t)
+        # print("after step , self.t is :",self.t)
         return dt
 
 
