@@ -1132,7 +1132,7 @@ class FlowlineModel(object):
                 # because of CFL, step() doesn't ensure that the end date is met
                 # lets run the steps until we reach our desired date
                 print("t in the run_until is :",t)
-                print("self.t is :",self.t)
+                # print("self.t is :",self.t)
                 while self.t < t:               
                     # # if self.required_model_steps == 'monthly':
                     # #     self.step(SEC_IN_YEAR/12.0)
