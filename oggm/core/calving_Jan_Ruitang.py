@@ -864,7 +864,10 @@ class CalvingFluxBasedModelJanRt(FlowlineModel):
                                                 fl_id=fl_id, fls=self.fls,store_monthly_step=True)
                         
                     self.calving_flux = utils.clip_min(0, calving_flux)
-                    
+                else:
+                    self.calving_flux = 0
+                    mb_current = self.get_mb(fl.surface_h, self.yr,
+                                              fl_id=fl_id, fls=self.fls, store_monthly_step=True)
 
              # Usual ice dynamics
             else:
