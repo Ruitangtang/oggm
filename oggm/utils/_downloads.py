@@ -247,7 +247,7 @@ def get_dl_verify_data(section):
 
     try:
         data = pd.read_hdf(verify_file_path, key=section)
-    except:
+    except KeyError:
         data = pd.DataFrame()
 
     cfg.DATA[verify_key] = data
