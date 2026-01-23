@@ -4279,7 +4279,7 @@ def init_present_time_glacier(gdir, filesuffix='',
 
             bed_shape = 4 * inv['thick'] / widths_m ** 2
 
-            lambdas = inv['thick'] * np.NaN
+            lambdas = inv['thick'] * np.nan
             lambdas[inv['is_trapezoid']] = def_lambda
             lambdas[inv['is_rectangular']] = 0.
 
