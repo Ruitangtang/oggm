@@ -36,7 +36,7 @@ def surf_to_nan(surf_h, thick):
     t2 = thick[1:-1]
     t3 = thick[2:]
     pnan = ((t1 == 0) & (t2 == 0)) & ((t2 == 0) & (t3 == 0))
-    surf_h[np.where(pnan)[0] + 1] = np.NaN
+    surf_h[np.where(pnan)[0] + 1] = np.nan
     return surf_h
 
 
@@ -103,12 +103,12 @@ def plot_modeloutput_section_New(model=None, ax=None, title=''):
 
     # Where trapezoid change color
     # if hasattr(cls, '_do_trapeze') and cls._do_trapeze:
-    #     bed_t = cls.bed_h * np.NaN
+    #     bed_t = cls.bed_h * np.nan
     #     pt = cls.is_trapezoid & (~cls.is_rectangular)
     #     bed_t[pt] = cls.bed_h[pt]
     #     ax.plot(x, bed_t, color='rebeccapurple', linewidth=2.5,
     #             label='Bed (Trap.)')
-    #     bed_t = cls.bed_h * np.NaN
+    #     bed_t = cls.bed_h * np.nan
     #     bed_t[cls.is_rectangular] = cls.bed_h[cls.is_rectangular]
     #     ax.plot(x, bed_t, color='crimson', linewidth=2.5, label='Bed (Rect.)')
 

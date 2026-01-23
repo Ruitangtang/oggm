@@ -1327,8 +1327,8 @@ def compute_inversion_velocities(gdir, glen_a=None, fs=None, filesuffix='',
                 velocity = flux / section
             velocity *= cfg.SEC_IN_YEAR
             u_surface = velocity / fac
-            u_basal = velocity * np.NaN
-            u_deformation = velocity * np.NaN
+            u_basal = velocity * np.nan
+            u_deformation = velocity * np.nan
 
         # output
         cl['u_integrated'] = velocity
@@ -1446,7 +1446,7 @@ def distribute_thickness_per_altitude(gdir, add_slope=True,
 
     # Re-mask
     utils.clip_min(thick, 0, out=thick)
-    thick[glacier_mask == 0] = np.NaN
+    thick[glacier_mask == 0] = np.nan
     assert np.all(np.isfinite(thick[glacier_mask == 1]))
 
     # Conserve volume
@@ -1510,7 +1510,7 @@ def distribute_thickness_interp(gdir, add_slope=True, smooth_radius=None,
             slope_factor = 1.
 
     # Thickness to interpolate
-    thick = glacier_ext * np.NaN
+    thick = glacier_ext * np.nan
     thick[(glacier_ext-ice_divides) == 1] = 0.
     # TODO: domain border too, for convenience for a start
     thick[0, :] = 0.
@@ -1549,7 +1549,7 @@ def distribute_thickness_interp(gdir, add_slope=True, smooth_radius=None,
         thick = np.where(glacier_mask, thick, 0.)
 
     # Re-mask
-    thick[glacier_mask == 0] = np.NaN
+    thick[glacier_mask == 0] = np.nan
     assert np.all(np.isfinite(thick[glacier_mask == 1]))
 
     # Conserve volume
