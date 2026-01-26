@@ -206,14 +206,14 @@ def _compute_thick(a0s, a3, flux_a0, shape_factor, _inv_function):
     -------
     the thickness
     """
-    print(f"DEBUG _compute_thick: a0s={a0s}, type={type(a0s)}, len={hasattr(a0s, '__len__')}")
+    # print(f"DEBUG _compute_thick: a0s={a0s}, type={type(a0s)}, len={hasattr(a0s, '__len__')}")
     # a0s = a0s / (shape_factor ** 3)
     # a3s = a3 / (shape_factor ** 3) # Not sure whether this is correct...
     # Convert to arrays to handle both scalar and array inputs
     a0s = np.atleast_1d(a0s / (shape_factor ** 3))
     a3s = np.atleast_1d(a3 / (shape_factor ** 3))
     flux_a0 = np.atleast_1d(flux_a0)
-    print("shape_factor in _compute_thick is :",shape_factor)
+    # print("shape_factor in _compute_thick is :",shape_factor)
     if np.any(~np.isfinite(a0s)):
         raise RuntimeError('non-finite coefficients in the polynomial.')
     
@@ -364,8 +364,8 @@ def sia_thickness_via_optim(slope, width, flux, rel_h=1, a_factor=1,shape='recta
         #     sect = width * h
         # return sect * u - flux
     # Add debug prints BEFORE brentq
-    print(f"DEBUG sia_thickness_via_optim: slope={slope}, width={width}, flux={flux}, max_h={max_h}")
-    print(f"DEBUG sia_thickness_via_optim: to_minimize(0)={to_minimize(0.1)}, to_minimize(max_h)={to_minimize(max_h)}")
+    # print(f"DEBUG sia_thickness_via_optim: slope={slope}, width={width}, flux={flux}, max_h={max_h}")
+    # print(f"DEBUG sia_thickness_via_optim: to_minimize(0)={to_minimize(0.1)}, to_minimize(max_h)={to_minimize(max_h)}")
 
     try:
         out_h, r = optimize.brentq(to_minimize, 0, max_h, full_output=True)
@@ -382,8 +382,8 @@ def sia_thickness_via_optim(slope, width, flux, rel_h=1, a_factor=1,shape='recta
             val1_scalar = float(val1)
             val2_scalar = float(val2)
         
-        print(f"DEBUG BRENTQ ERROR: Function values: f(0.1)={val1_scalar:.6f}, f({max_h})={val2_scalar:.6f}")
-        print(f"DEBUG BRENTQ ERROR: Signs: sign(f(0.1))={np.sign(val1_scalar)}, sign(f(max_h))={np.sign(val2_scalar)}")
+        # print(f"DEBUG BRENTQ ERROR: Function values: f(0.1)={val1_scalar:.6f}, f({max_h})={val2_scalar:.6f}")
+        # print(f"DEBUG BRENTQ ERROR: Signs: sign(f(0.1))={np.sign(val1_scalar)}, sign(f(max_h))={np.sign(val2_scalar)}")
         # Fallback: try a different method or return a default
         # For example, use bisection with adjusted bounds
         if np.sign(to_minimize(0.1)) == np.sign(to_minimize(max_h)):
