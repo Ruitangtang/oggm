@@ -206,23 +206,36 @@ def _compute_thick(a0s, a3, flux_a0, shape_factor, _inv_function):
     -------
     the thickness
     """
-
-    a0s = a0s / (shape_factor ** 3)
-    a3s = a3 / (shape_factor ** 3) # Not sure whether this is correct...
+    print(f"DEBUG _compute_thick: a0s={a0s}, type={type(a0s)}, len={hasattr(a0s, '__len__')}")
+    # a0s = a0s / (shape_factor ** 3)
+    # a3s = a3 / (shape_factor ** 3) # Not sure whether this is correct...
+    # Convert to arrays to handle both scalar and array inputs
+    a0s = np.atleast_1d(a0s / (shape_factor ** 3))
+    a3s = np.atleast_1d(a3 / (shape_factor ** 3))
+    flux_a0 = np.atleast_1d(flux_a0)
     print("shape_factor in _compute_thick is :",shape_factor)
     if np.any(~np.isfinite(a0s)):
         raise RuntimeError('non-finite coefficients in the polynomial.')
+    
+    # Always process as arrays
+    out_thick = np.zeros(len(a0s))
+    for i,(a0,a3,Q) in enumerate(zip(a0s,a3s, flux_a0)):
+        out_thick[i] = _inv_function(a3, a0) if Q > 0 else 0
+    
+    # Return scalar if input was scalar
+    if out_thick.size == 1:
+        return out_thick[0]
 
-    # Solve the polynomials
-    try:
-        out_thick = np.zeros(len(a0s))
-        for i,(a0,a3,Q) in enumerate(zip(a0s,a3s, flux_a0)):
-            #print("the", i, "iteration in the _compute_thick")
-            out_thick[i] = _inv_function(a3, a0) if Q > 0 else 0
-    except TypeError:
-        # Scalar
-        # print("*********************TypeError in _compute_thick*********************")
-        out_thick = _inv_function(a3, a0s) if flux_a0 > 0 else 0
+    # # Solve the polynomials
+    # try:
+    #     out_thick = np.zeros(len(a0s))
+    #     for i,(a0,a3,Q) in enumerate(zip(a0s,a3s, flux_a0)):
+    #         #print("the", i, "iteration in the _compute_thick")
+    #         out_thick[i] = _inv_function(a3, a0) if Q > 0 else 0
+    # except TypeError:
+    #     # Scalar
+    #     # print("*********************TypeError in _compute_thick*********************")
+    #     out_thick = _inv_function(a3, a0s) if flux_a0 > 0 else 0
 
     if np.any(~np.isfinite(out_thick)):
         raise RuntimeError('non-finite coefficients in the polynomial.')
@@ -289,20 +302,100 @@ def sia_thickness_via_optim(slope, width, flux, rel_h=1, a_factor=1,shape='recta
     max_h = width / t_lambda if shape == 'trapezoid' else 1e4
     # TODO: add shape factors for lateral drag
     def to_minimize(h):
-        #u = (h ** (n + 1)) * fd * rhogh + (h ** (n - 1)) * fs * rhogh
-        u_drag = (rho * cfg.G * slope * h * a_factor)**n * h * fd
-        u_slide = (rho * cfg.G * slope * a_factor)**n * fs * h**(n-1) * rel_h
-        u = u_drag + u_slide   
-
+                # --- CONVERT EVERYTHING TO SCALARS ---
+        h_scalar = float(h.item()) if hasattr(h, 'item') else float(h)
+        
+        # Force ALL inputs to be scalars
+        slope_scalar = float(slope) if np.isscalar(slope) else float(np.asarray(slope).item())
+        width_scalar = float(width) if np.isscalar(width) else float(np.asarray(width).item())
+        flux_scalar = float(flux) if np.isscalar(flux) else float(np.asarray(flux).item())
+        a_factor_scalar = float(a_factor) if np.isscalar(a_factor) else float(np.asarray(a_factor).item())
+        
+        # Ice flow params (already scalars, but just in case)
+        n_scalar = float(n)
+        fd_scalar = float(fd)
+        fs_scalar = float(fs)
+        rho_scalar = float(rho)
+        rel_h_scalar = float(rel_h) if np.isscalar(rel_h) else float(np.asarray(rel_h).item())
+        # -------------------------------------------------
+        
+        # USE ONLY SCALAR VARIABLES IN CALCULATIONS
+        u_drag = (rho_scalar * cfg.G * slope_scalar * h_scalar * a_factor_scalar)**n_scalar * h_scalar * fd_scalar
+        u_slide = (rho_scalar * cfg.G * slope_scalar * a_factor_scalar)**n_scalar * fs_scalar * h_scalar**(n_scalar-1) * rel_h_scalar
+        u = u_drag + u_slide
+        
         if shape == 'parabolic':
-            sect = 2./3. * width * h
+            sect = 2./3. * width_scalar * h_scalar
         elif shape == 'trapezoid':
-            w0m = width - t_lambda * h
-            sect = (width + w0m) / 2 * h
+            w0m = width_scalar - t_lambda * h_scalar
+            sect = (width_scalar + w0m) / 2 * h_scalar
         else:
-            sect = width * h
-        return sect * u - flux
-    out_h, r = optimize.brentq(to_minimize, 0, max_h, full_output=True)
+            sect = width_scalar * h_scalar
+        
+        return sect * u - flux_scalar  # MUST return scalar, not array
+        # #u = (h ** (n + 1)) * fd * rhogh + (h ** (n - 1)) * fs * rhogh
+        # # --- NUMERICALLY STABLE SCALAR EXTRACTION FOR NUMPY 2+ ---
+        # # Convert h to a scalar with the most robust method
+        # try:
+        #     # First, try the standard NumPy scalar conversion
+        #     h_scalar = h.item()
+        # except (AttributeError, ValueError):
+        #     # If .item() doesn't exist or fails, use float() as last resort
+        #     h_scalar = float(h)
+        
+        # # For slope and a_factor, which come from outer scope
+        # # Use np.ndim() check which is more reliable than hasattr
+        # slope_scalar = float(np.asarray(slope).item()) if np.ndim(slope) > 0 else float(slope)
+        # a_factor_scalar = float(np.asarray(a_factor).item()) if np.ndim(a_factor) > 0 else float(a_factor)
+        # # -----------------------------------------------------------------
+        
+        # # USE THE NEW SCALAR VARIABLES
+        # u_drag = (rho * cfg.G * slope_scalar * h_scalar * a_factor_scalar)**n * h_scalar * fd
+        # u_slide = (rho * cfg.G * slope_scalar * a_factor_scalar)**n * fs * h_scalar**(n-1) * rel_h
+        # # u_slide = (rho * cfg.G * slope * a_factor)**n * fs * h**(n-1) * rel_h
+        # u = u_drag + u_slide   
+
+        # if shape == 'parabolic':
+        #     sect = 2./3. * width * h
+        # elif shape == 'trapezoid':
+        #     w0m = width - t_lambda * h
+        #     sect = (width + w0m) / 2 * h
+        # else:
+        #     sect = width * h
+        # return sect * u - flux
+    # Add debug prints BEFORE brentq
+    print(f"DEBUG sia_thickness_via_optim: slope={slope}, width={width}, flux={flux}, max_h={max_h}")
+    print(f"DEBUG sia_thickness_via_optim: to_minimize(0)={to_minimize(0.1)}, to_minimize(max_h)={to_minimize(max_h)}")
+
+    try:
+        out_h, r = optimize.brentq(to_minimize, 0, max_h, full_output=True)
+    except ValueError as e:
+        # Handle potential arrays in debug print
+        val1 = to_minimize(0.1)
+        val2 = to_minimize(max_h)
+        
+        # Convert to scalars for printing
+        if hasattr(val1, 'item'):
+            val1_scalar = val1.item()
+            val2_scalar = val2.item()
+        else:
+            val1_scalar = float(val1)
+            val2_scalar = float(val2)
+        
+        print(f"DEBUG BRENTQ ERROR: Function values: f(0.1)={val1_scalar:.6f}, f({max_h})={val2_scalar:.6f}")
+        print(f"DEBUG BRENTQ ERROR: Signs: sign(f(0.1))={np.sign(val1_scalar)}, sign(f(max_h))={np.sign(val2_scalar)}")
+        # Fallback: try a different method or return a default
+        # For example, use bisection with adjusted bounds
+        if np.sign(to_minimize(0.1)) == np.sign(to_minimize(max_h)):
+            # Both same sign - no root in interval
+            # Try to find a reasonable thickness analytically
+            out_h = (flux / (width * (rho * cfg.G * slope)**3 * fd))**(1/5)
+            out_h = float(np.clip(out_h, 0.1, max_h))
+            print(f"DEBUG: Using analytical fallback thickness: {out_h}")
+            return out_h
+        else:
+            raise e
+    out_h, r = optimize.brentq(to_minimize, 0.0001, max_h, full_output=True)
     return out_h
 
 
@@ -1849,6 +1942,9 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
     cls = gdir.read_pickle('inversion_input',filesuffix = filesuffix)[-1]
     slope = cls['slope_angle'][-1]
     width = cls['width'][-1]
+    # Convert to scalars for NumPy 2+
+    slope = np.asarray(slope).flat[0] if hasattr(slope, '__len__') else float(slope)
+    width = np.asarray(width).flat[0] if hasattr(width, '__len__') else float(width)
 
     # Stupidly enough the slope is clipped in the OGGM inversion, not
     # in inversion prepro - clip here
@@ -1915,8 +2011,16 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
                                      option_areaconstant = option_areaconstant,
                                      inversion_filter = inversion_filter,filesuffix=filesuffix)
 
-        flux = fl['flux'] * 1e9 / cfg.SEC_IN_YEAR
-        thick = fl['thick']
+        # Use .flat[0] for NumPy 2+ compatibility
+        flux_scalar = np.asarray(fl['flux']).flat[0]  # Get scalar value
+        thick_scalar = np.asarray(fl['thick']).flat[0]
+        water_depth_scalar = np.asarray(water_depth).flat[0]
+
+        # 2. Perform calculations WITH THE SCALARS
+        flux = flux_scalar * 1e9 / cfg.SEC_IN_YEAR  # flux is now a scalar
+        thick = thick_scalar  # thick is now a scalar
+        water_depth = water_depth_scalar  # water_depth is now a scalar
+        print(f"DEBUG SCALARS: flux={flux}, type={type(flux)}, is_scalar={np.isscalar(flux)}")
         length = len(cls['width']) * cls['dx']
         stretch_dist_p = cfg.PARAMS.get('stretch_dist', 8e3)
         stretch_dist = utils.clip_max(stretch_dist_p,length)
@@ -1962,7 +2066,7 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
 
     # abs_min = optimize.minimize(to_minimize, [1], bounds=((1e-4, 1e4), ),
     #                             tol=1e-1)
-    abs_min = optimize.minimize(to_minimize, [1.01], bounds=((1.01, 1e4), ),
+    abs_min = optimize.minimize(to_minimize, 1.01, bounds=((1.01, 1e4), ),
                                 tol=1e-1)
     print("abs_min is :",abs_min)
 
