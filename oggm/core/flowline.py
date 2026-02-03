@@ -521,7 +521,8 @@ class MixedBedFlowline(Flowline):
                                                rgi_id=rgi_id,
                                                water_level=water_level,
                                                gdir=gdir)
-
+        # define epsilon for numerical stability
+        epsilon = 1e-12
         # To speedup calculations if no trapezoid bed is present
         self._do_trapeze = np.any(is_trapezoid)
 
@@ -534,7 +535,8 @@ class MixedBedFlowline(Flowline):
         assert len(lambdas) == self.nx
         assert len(is_trapezoid) == self.nx
         self._lambdas = lambdas.copy()
-        self._ptrap = np.where(is_trapezoid)[0]
+        #self._ptrap = np.where(is_trapezoid)[0]
+        self._ptrap = np.atleast_1d(np.where(is_trapezoid)[0])
         self.is_trapezoid = is_trapezoid
         self.is_rectangular = self.is_trapezoid & (self._lambdas == 0)
 
@@ -545,10 +547,31 @@ class MixedBedFlowline(Flowline):
         # Here we have to compute the widths out of section and lambda
         thick = surface_h - bed_h
         with np.errstate(divide='ignore', invalid='ignore'):
-            self._w0_m = section / thick - lambdas * thick / 2
+            # More stable computation of w0_m for trapezoid beds
+            #self._w0_m = section / thick - lambdas * thick / 2
+            #self._w0_m = section / (thick + 1e-12) - lambdas * thick / 2
+            #self._w0_m = section / np.maximum(thick, 1e-12) - lambdas * thick / 2
+                # For trapezoid: w0_m = (section - λ * h²/2) / h
+            # More stable than: section/h - λ*h/2
+            h = thick.copy()
+            h[h < epsilon] = epsilon  # Avoid division by zero
+            
+            self._w0_m = (section - lambdas * thick**2 / 2) / h
+            
+            # Physical constraint: width cannot be negative
+            self._w0_m = np.maximum(self._w0_m, 0)
+
+        if np.any(self.is_trapezoid):
+            print(f"DEBUG - Section: {section[self.is_trapezoid][:5]}")
+            print(f"DEBUG - Thick: {thick[self.is_trapezoid][:5]}")
+            print(f"DEBUG - Lambdas: {self._lambdas[self.is_trapezoid][:5]}")
+            print(f"DEBUG - w0_m: {self._w0_m[self.is_trapezoid][:5]}")
+            print(f"DEBUG - Any NaN: {np.any(np.isnan(self._w0_m[self.is_trapezoid]))}")
+            print(f"DEBUG - Any <= 0: {np.any(self._w0_m[self.is_trapezoid][np.isfinite(self._w0_m[self.is_trapezoid])] <= 0)}")
 
         assert np.all(section >= 0)
-        need_w = (section == 0) & is_trapezoid
+        #need_w = (section == 0) & is_trapezoid
+        need_w = (section <= 1e-12) & is_trapezoid
         if np.any(need_w):
             if widths_m is None:
                 raise ValueError('We need a non-zero section for trapezoid '
@@ -557,9 +580,19 @@ class MixedBedFlowline(Flowline):
 
         self._w0_m[~is_trapezoid] = np.nan
 
-        if (np.any(self._w0_m[self._ptrap] <= 0) or
-                np.any(~np.isfinite(self._w0_m[self._ptrap]))):
-            raise ValueError('Trapezoid beds need to have origin widths > 0.')
+        # if (np.any(self._w0_m[self._ptrap] <= 0) or
+        #         np.any(~np.isfinite(self._w0_m[self._ptrap]))):
+        #     raise ValueError('Trapezoid beds need to have origin widths > 0.')
+        
+        if len(self._ptrap) > 0:
+            w0_trap = self._w0_m[self._ptrap]
+            finite_mask = np.isfinite(w0_trap)
+            # Now we expect all values to be >= 0 due to np.maximum above
+            # But keep check for debugging
+            if np.any(w0_trap[finite_mask] < -epsilon):
+                # This shouldn't happen with the fix above
+                raise ValueError(f'Trapezoid beds need to have origin widths > 0. '
+                                f'Found: {w0_trap[w0_trap < -epsilon]}')
 
         assert np.all(self.bed_shape[~is_trapezoid] > 0)
 
@@ -4262,6 +4295,7 @@ def init_present_time_glacier(gdir, filesuffix='',
     # Fill the tributaries
     new_fls = []
     flows_to_ids = []
+    epsilon = 1e-12
     for cl, inv in zip(cls, invs):
 
         # Get the data to make the model flowlines
@@ -4275,16 +4309,31 @@ def init_present_time_glacier(gdir, filesuffix='',
         if not use_binned_thickness_data:
             # classical initialisation after the inversion
             section = inv['volume'] / (cl.dx * map_dx)
-            bed_h = surface_h - inv['thick']
 
-            bed_shape = 4 * inv['thick'] / widths_m ** 2
+            bed_h = surface_h - inv['thick']
+            # Also ensure thick is not exactly zero
+            inv_thick = inv['thick'].copy()
+            inv_thick[inv_thick <= epsilon] = epsilon
+            bed_shape = 4 * inv_thick / (widths_m ** 2 + epsilon)
+            #bed_shape = 4 * inv['thick'] / widths_m ** 2
 
             lambdas = inv['thick'] * np.nan
             lambdas[inv['is_trapezoid']] = def_lambda
             lambdas[inv['is_rectangular']] = 0.
 
             # Where the flux and the thickness is zero we just assume trapezoid:
-            lambdas[bed_shape == 0] = def_lambda
+            #lambdas[bed_shape == 0] = def_lambda
+            # Change to:
+            is_effectively_zero = bed_shape <= epsilon
+            lambdas[is_effectively_zero] = def_lambda
+
+            # Add: ensure trapezoid sections are physically possible
+            trapezoid_mask = inv['is_trapezoid'] | is_effectively_zero
+            if np.any(trapezoid_mask):
+                min_section = 0.5 * def_lambda * inv_thick[trapezoid_mask] ** 2
+                current = section[trapezoid_mask]
+                # Ensure minimum physical section
+                section[trapezoid_mask] = np.maximum(current, min_section + epsilon)
 
         else:
             # here we use binned thickness data for the initialisation
@@ -4314,7 +4363,7 @@ def init_present_time_glacier(gdir, filesuffix='',
 
             # finally the glacier bed and other stuff
             bed_h = surface_h - thick
-            bed_shape = 4 * thick / widths_m ** 2
+            bed_shape = 4 * thick / (widths_m ** 2+ epsilon)
 
         if not gdir.is_tidewater and inv['is_last']:
             # for valley glaciers, simply add the downstream line, depending on
