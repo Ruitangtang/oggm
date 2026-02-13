@@ -236,6 +236,7 @@ def fa_sermeq_speed_law(model,last_above_wl, mb_current = None,v_scaling=1, verb
     surface_m = flowline.surface_h
     bed_m = flowline.bed_h
     width_m = flowline.widths_m
+    length_m = flowline.length_m
     
     # u_stag[-1] is the main flowline
     velocity_m = model.u_stag[-1]*cfg.SEC_IN_YEAR
@@ -358,6 +359,11 @@ def fa_sermeq_speed_law(model,last_above_wl, mb_current = None,v_scaling=1, verb
         print('dLdt_numerator',dLdt_numerator)
         print('dLdt_denominator',dLdt_denominator)
         dLdt_viscoplastic = dLdt_numerator / dLdt_denominator
+        # check the length change rate should be constrained by smaller than the original length
+        if dLdt_viscoplastic > length_m:
+            print("The length change rate is larger than the original length, please check the input data and model results")
+            # set the length change rate as nan
+            dLdt_viscoplastic = np.nan
         # if dLdt_denominator < 0:
         #     raise RuntimeError('DHYDX-DHDX IS LESS THEN ZERO')
         # elif dLdt_denominator == 0:
@@ -862,8 +868,15 @@ class CalvingFluxBasedModelJanRt(FlowlineModel):
                         calving_flux = self.calving_law(self, fl, last_above_wl)
                         mb_current = self.get_mb(fl.surface_h, self.yr,
                                                 fl_id=fl_id, fls=self.fls,store_monthly_step=True)
-                        
-                    self.calving_flux = utils.clip_min(0, calving_flux)
+                    # Handle the case where the calving flux is nan (which can happen for dLdt is nan,
+                    # e.g. due to bad bed topography or unrealistic length change , which is more than 
+                    # the original length (the previous time step)). In this case, we set the calving flux to zero 
+                    # to avoid crashing the model. We also make sure that the calving flux is not negative, as that would not make physical sense.
+                    if np.isnan(calving_flux):
+                        self.calving_flux = 0
+                    else:
+                        self.calving_flux = utils.clip_min(0, calving_flux)    
+                    #self.calving_flux = utils.clip_min(0, calving_flux)
                 else:
                     self.calving_flux = 0
                     mb_current = self.get_mb(fl.surface_h, self.yr,
