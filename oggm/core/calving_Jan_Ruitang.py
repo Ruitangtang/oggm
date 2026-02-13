@@ -373,6 +373,12 @@ def fa_sermeq_speed_law(model,last_above_wl, mb_current = None,v_scaling=1, verb
         
         # try:
         U_calving = U_terminus - dLdt_viscoplastic  ## frontal ablation rate
+        # add the constraint that the frontal ablation should be non-negative and not infinite by constrain terminus velocity, no more than 5000 m/a
+        # we just set the frontal ablation as zero when the terminus velocity is larger than 5000 m/a, which is not realistic for most of the tidewater glaciers,
+        # except for some surge type glaciers # TODO: need to be improved in future for surge type glaciers
+        if U_terminus > 5000:
+            print("The terminus velocity is larger than 5000 m/a, which is not realistic for most of the tidewater glaciers, please check the model results and input data, and consider to set the frontal ablation as zero for this case")
+            U_calving=0
         fa_viscoplastic=U_calving
         # if U_calving<0:
         #     print("The glacier is advancing, and the advancing rate is larger than ice flow speed at the terminus, please check ")
