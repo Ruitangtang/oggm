@@ -360,8 +360,8 @@ def fa_sermeq_speed_law(model,last_above_wl, mb_current = None,v_scaling=1, verb
         print('dLdt_denominator',dLdt_denominator)
         dLdt_viscoplastic = dLdt_numerator / dLdt_denominator
         # check the length change rate should be constrained by smaller than the original length
-        if dLdt_viscoplastic > length_m:
-            print("The length change rate is larger than the original length, please check the input data and model results")
+        if abs(dLdt_viscoplastic) >= length_m:
+            print("The absolute length change rate is larger than or equal to the original length, please check the input data and model results")
             # set the length change rate as nan
             dLdt_viscoplastic = np.nan
         # if dLdt_denominator < 0:
