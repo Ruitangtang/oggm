@@ -500,6 +500,7 @@ def initialize_minimal(file=None, logging_level='INFO', params=None):
     PARAMS['use_kcalving_for_inversion'] = cp.as_bool('use_kcalving_for_inversion')
     PARAMS['use_kcalving_for_run'] = cp.as_bool('use_kcalving_for_run')
     PARAMS['calving_use_limiter'] = cp.as_bool('calving_use_limiter')
+    PARAMS['variable_yield'] = cp.as_bool('variable_yield')
     PARAMS['use_inversion_params_for_run'] = cp.as_bool('use_inversion_params_for_run')
     k = 'error_when_glacier_reaches_boundaries'
     PARAMS[k] = cp.as_bool(k)
@@ -561,7 +562,7 @@ def initialize_minimal(file=None, logging_level='INFO', params=None):
            'use_intersects', 'filter_min_slope', 'clip_tidewater_border',
            'auto_skip_task', 'ref_mb_valid_window',
            'rgi_version', 'dl_verify', 'use_mp_spawn', 'calving_use_limiter',
-           'use_rgi_area', 'baseline_climate',
+           'variable_yield', 'use_rgi_area', 'baseline_climate',
            'calving_line_extension', 'use_kcalving_for_run', 'lru_maxsize',
            'free_board_marine_terminating', 'use_kcalving_for_inversion',
            'error_when_glacier_reaches_boundaries', 'glacier_length_method',
@@ -569,7 +570,8 @@ def initialize_minimal(file=None, logging_level='INFO', params=None):
            'tidewater_type', 'store_model_geometry', 'use_winter_prcp_fac',
            'store_diagnostic_variables', 'store_fl_diagnostic_variables',
            'geodetic_mb_period', 'store_fl_diagnostics', 'winter_prcp_fac_ab',
-           'prcp_fac', 'downstream_line_shape', 'keep_multipolygon_outlines']
+           'prcp_fac', 'downstream_line_shape', 'keep_multipolygon_outlines','calving_law_inv',
+           'use_shape_factor_for_fluxbasedmodel']
     for k in ltr:
         cp.pop(k, None)
 

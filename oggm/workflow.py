@@ -428,6 +428,7 @@ def init_glacier_directories(rgidf=None, *, reset=False, force=False,
                                         prepro_border=prepro_border,
                                         prepro_rgi_version=prepro_rgi_version,
                                         base_url=prepro_base_url)
+            print("gdirs", gdirs)
         else:
             # We can set the intersects file automatically here
             if (cfg.PARAMS['use_intersects'] and

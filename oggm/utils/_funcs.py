@@ -9,6 +9,10 @@ import logging
 import warnings
 import shutil
 from packaging.version import Version
+from decimal import Decimal, getcontext
+import math
+# Set the precision for Decimal operations
+getcontext().prec = 28
 
 # External libs
 import pandas as pd
@@ -539,6 +543,7 @@ def recursive_valid_polygons(geoms, crs):
     return new_geoms
 
 
+
 def multipolygon_to_polygon(geometry, gdir=None):
     """Sometimes an RGI geometry is a multipolygon: this should not happen.
 
@@ -597,6 +602,82 @@ def multipolygon_to_polygon(geometry, gdir=None):
     return geometry
 
 
+# def floatyear_to_date(yr):
+#     """Converts a float year to an actual (year, month) pair.
+
+#     Note that this doesn't account for leap years (365-day no leap calendar),
+#     and that the months all have the same length.
+
+#     Parameters
+#     ----------
+#     yr : float or list of float/Decimal
+#         The floating year
+#     """
+
+#     out_y, remainder = np.divmod(yr, 1)
+
+#     out_y = out_y.astype(int)
+
+#     month_exact = (remainder * 12 + 1)
+#     # np.where to deal with floating point precision
+#     out_m = np.minimum(12,
+#                        np.where(np.isclose(month_exact, np.round(month_exact)),
+#                                 np.round(month_exact),
+#                                 np.floor(month_exact)).astype(int))
+       
+#     if (isinstance(yr, list) or isinstance(yr, np.ndarray)) and len(yr) == 1:
+#         out_y = out_y.item()
+#         out_m = out_m.item()
+#     elif isinstance(yr, xr.DataArray):
+#         out_y = np.array(out_y)
+#         out_m = np.array(out_m)
+
+#     return out_y, out_m
+
+# def floatyear_to_date(yr):
+#     """Converts a float year to an actual (year, month) pair.
+
+#     Note that this doesn't account for leap years (365-day no leap calendar),
+#     and that the months all have the same length.
+
+#     Parameters
+#     ----------
+#     yr : float or list of float
+#         The floating year
+#     """
+
+#     if isinstance(yr, xr.DataArray):
+#         yr = yr.values
+
+#     if isinstance(yr, (int, float)):
+#         yr = np.array([yr], dtype=np.float64)
+
+#     # check if year is inside machine precision to next higher int
+#     yr_ceil = np.ceil(yr)
+#     yr = np.where(np.isclose(yr,
+#                              yr_ceil,
+#                              rtol=np.finfo(np.float64).eps,
+#                              atol=0
+#                              ),
+#                   yr_ceil,
+#                   yr)
+
+#     out_y, remainder = np.divmod(yr, 1)
+#     out_y = out_y.astype(int)
+
+#     month_exact = (remainder * 12 + 1)
+#     # np.where to deal with floating point precision
+#     out_m = np.minimum(12,
+#                        np.where(np.isclose(month_exact, np.round(month_exact)),
+#                                 np.round(month_exact),
+#                                 np.floor(month_exact)).astype(int))
+
+#     if (isinstance(yr, list) or isinstance(yr, np.ndarray)) and len(yr) == 1:
+#         out_y = out_y.item()
+#         out_m = out_m.item()
+
+#     return out_y, out_m
+
 def floatyear_to_date(yr):
     """Converts a float year to an actual (year, month) pair.
 
@@ -609,6 +690,22 @@ def floatyear_to_date(yr):
         The floating year
     """
 
+    if isinstance(yr, xr.DataArray):
+        yr = yr.values
+
+    # Ensure yr is a np.array, even for scalar values
+    yr = np.atleast_1d(yr).astype(np.float64)
+
+    # check if year is inside machine precision to next higher int
+    yr_ceil = np.ceil(yr)
+    yr = np.where(np.isclose(yr,
+                             yr_ceil,
+                             rtol=np.finfo(np.float64).eps,
+                             atol=0
+                             ),
+                  yr_ceil,
+                  yr)
+
     out_y, remainder = np.divmod(yr, 1)
     out_y = out_y.astype(int)
 
@@ -619,6 +716,45 @@ def floatyear_to_date(yr):
                                 np.round(month_exact),
                                 np.floor(month_exact)).astype(int))
 
+    if yr.size == 1:
+        out_y = out_y.item()
+        out_m = out_m.item()
+
+    return out_y, out_m
+
+
+def floatyear_to_date_Decimal(yr):
+    """Converts a float year to an actual (year, month) pair.
+
+    Note that this doesn't account for leap years (365-day no leap calendar),
+    and that the months all have the same length.
+    
+    @ Ruitang revised the function to handle Decimal type input,
+    To handle floating-point and numerical precision issues effectively
+    Parameters
+    ----------
+    yr : float or list of float/Decimal
+        The floating year
+    """
+    # Convert to numpy array if it's not already an array, to handle lists and scalars uniformly
+    if not isinstance(yr, (list, np.ndarray, xr.DataArray)):
+        yr = np.array([yr], dtype=np.float64)  # Wrap scalar in array for consistent handling
+
+    out_y, remainder = np.divmod(yr, 1.0)
+    # if logging.getLogger().getEffectiveLevel() == logging.CRITICAL:
+    #     print("yr in floatyear_to_date :",yr)
+    #     print("out_y (1)is :",out_y)
+    #     print("remainder is :",remainder)
+    # Convert out_y to int type
+    #out_y = out_y.astype(int)
+    # Convert out_y to int type using np.floor for stability
+    out_y = np.floor(out_y).astype(int)
+    #print("out_y (2) is :",out_y)
+    # check for a floating point precision rounding problem
+    month_exact = (remainder * 12.0 + 1.0)
+    #print("month_exact is :",month_exact)
+    out_m = np.minimum(12, np.floor(month_exact).astype(int))  # Always round down
+    #print("out_m is :",out_m)
     if (isinstance(yr, list) or isinstance(yr, np.ndarray)) and len(yr) == 1:
         out_y = out_y.item()
         out_m = out_m.item()
@@ -643,8 +779,12 @@ def date_to_floatyear(y, m):
         the month
     """
 
-    return (np.asanyarray(y) + (np.asanyarray(m) - 1) *
-            SEC_IN_MONTH / SEC_IN_YEAR)
+    # return (np.asanyarray(y) + (np.asanyarray(m) - 1) *
+    #         SEC_IN_MONTH / SEC_IN_YEAR)
+    y = np.asanyarray(y)
+    m = np.asanyarray(m)
+    month_index = y * 12 + (m - 1)
+    return month_index / 12.0
 
 
 def hydrodate_to_calendardate(y, m, start_month=None):
@@ -714,7 +854,11 @@ def monthly_timeseries(y0, y1=None, ny=None, include_last_year=False):
     Parameters
     ----------
     """
-
+    if isinstance(y0, xr.DataArray):
+        y0 = y0.values
+    if isinstance(y1, xr.DataArray):
+        y1 = y1.values
+        
     if y1 is not None:
         years = np.arange(np.floor(y0), np.floor(y1) + 1)
     elif ny is not None:

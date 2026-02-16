@@ -1821,19 +1821,20 @@ def find_inversion_calving_from_any_mb(gdir, mb_model=None, mb_years=None,
         # For glaciers that are already relatively thick compared to the 
         # freeboard given by the DEM, it seems useful to start with a lower 
         # water level in order not to underestimate the initial thickness.
-        water_level = -thick0/4 if thick0 > 8*th else 0
+        #water_level = -thick0/8 if thick0 > 8*th else 0
         #print("water_level is now:,",water_level)
         if gdir.is_lake_terminating:
             water_level = th - cfg.PARAMS['free_board_lake_terminating']
-        # else:
-        #     #vmin, vmax = cfg.PARAMS['free_board_marine_terminating']
-        #     if th < (1-rho/rho_o)*thick0:
-        #         print ("Warning: The terminus of this glacier is floating")
-        #         water_level = th - (1-rho/rho_o)*thick0
-        #     elif th > 0.3*thick0:
-        #         water_level = th - 0.3*thick0
-        #     else:
-        #         water_level = 0            
+        else:
+            #vmin, vmax = cfg.PARAMS['free_board_marine_terminating']
+            if th < (1-rho/rho_o)*thick0:
+                print ("Warning: The terminus of this glacier is floating")
+                water_level = th - (1-rho/rho_o)*thick0
+            elif th > 0.3*thick0:
+                print("Warning: The freeboard of the terminus of this glacier is more than 0.3*thick")
+                water_level = th - 0.3*thick0
+            else:
+                water_level = 0            
             #water_level = utils.clip_scalar(0, th - vmax, th - vmin)
     print("water level now is :",water_level)
     # The functions all have the same shape: they decrease, then increase

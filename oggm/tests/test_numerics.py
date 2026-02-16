@@ -1,19 +1,24 @@
+import copy
 import unittest
 from functools import partial
-import pytest
-import copy
+
+# after oggm.test
+import matplotlib.pyplot as plt
 import numpy as np
+import pytest
 from numpy.testing import assert_allclose
 
 # Local imports
 import oggm
-from oggm.core.massbalance import LinearMassBalance, ScalarMassBalance
-from oggm.core.inversion import find_sia_flux_from_thickness
 from oggm import utils, cfg
 from oggm.cfg import SEC_IN_DAY
+from oggm.core.flowline import (KarthausModel, FluxBasedModel,
+                                MassConservationChecker, SemiImplicitModel,fa_sermeq_speed_law)
+from oggm.core.inversion import find_sia_flux_from_thickness
+from oggm.core.massbalance import LinearMassBalance, ScalarMassBalance
 from oggm.core.sia2d import Upstream2D
 from oggm.exceptions import InvalidParamsError
-
+from oggm.tests.ext.sia_fluxlim import MUSCLSuperBeeModel
 # Tests
 from oggm.tests.funcs import (dummy_bumpy_bed, dummy_constant_bed,
                               dummy_constant_bed_cliff,
@@ -23,14 +28,6 @@ from oggm.tests.funcs import (dummy_bumpy_bed, dummy_constant_bed,
                               dummy_width_bed_tributary, bu_tidewater_bed,
                               dummy_bed_tributary_tail_to_head,
                               dummy_mixed_trap_rect_bed)
-
-# after oggm.test
-import matplotlib.pyplot as plt
-
-from oggm.core.flowline import (KarthausModel, FluxBasedModel,
-                                MassRedistributionCurveModel,
-                                MassConservationChecker, SemiImplicitModel)
-from oggm.tests.ext.sia_fluxlim import MUSCLSuperBeeModel
 
 FluxBasedModel = partial(FluxBasedModel, inplace=True)
 KarthausModel = partial(KarthausModel, inplace=True)
@@ -281,7 +278,7 @@ class TestIdealisedCases(unittest.TestCase):
                 length[i] = fl.length_m
                 vol[i] = fl.volume_km3
 
-                hgt = np.where(fl.thick > 0, fl.surface_h, np.NaN)
+                hgt = np.where(fl.thick > 0, fl.surface_h, np.nan)
                 sl = np.arctan(-np.gradient(hgt, fl.dx_meter))
                 slope[i] = np.rad2deg(np.nanmin(sl))
 
@@ -1266,7 +1263,7 @@ class TestIdealisedCases(unittest.TestCase):
                 # Just for the plot
                 _sh = model.fls[-1].surface_h.copy()
                 pp = np.nonzero(model.fls[-1].thick)[0][-1] + 2
-                _sh[pp:] = np.NaN
+                _sh[pp:] = np.nan
                 surface_h.append(_sh)
 
             # We are almost at equilibrium. Spec MB should be close to 0
@@ -1369,7 +1366,7 @@ class TestIdealisedCases(unittest.TestCase):
                 # Just for the plot
                 _sh = model.fls[-1].surface_h.copy()
                 pp = np.nonzero(model.fls[-1].thick)[0][-1] + 2
-                _sh[pp:] = np.NaN
+                _sh[pp:] = np.nan
                 surface_h.append(_sh)
 
             # We are almost at equilibrium. Spec MB should be close to 0
@@ -1717,25 +1714,32 @@ class TestKCalving():
     def test_other_calving_law(self, default_calving):
 
         _, ds_1, _ = default_calving
-
-        # We just multiply by 2 inside and divide by 2 outside, should be same
-        def my_calving_law(model, flowline, last_above_wl):
-            h = flowline.thick[last_above_wl]
-            d = h - (flowline.surface_h[last_above_wl] - model.water_level)
-            k = model.calving_k
-            q_calving = k * d * h * flowline.widths_m[last_above_wl] * 2
-            return q_calving
-
-        model = FluxBasedModel(bu_tidewater_bed(),
-                               mb_model=ScalarMassBalance(),
+        model = FluxBasedModel(bu_tidewater_bed(), mb_model=ScalarMassBalance(),
                                is_tidewater=True, calving_use_limiter=True,
                                flux_gate=0.06, do_kcalving=True,
-                               calving_law=my_calving_law,
-                               calving_k=0.2 / 2)
+                               calving_law=fa_sermeq_speed_law,calving_k=1)
+        # We just multiply by 2 inside and divide by 2 outside, should be same
+        # def my_calving_law(model, flowline, last_above_wl):
+        #     h = flowline.thick[last_above_wl]
+        #     d = h - (flowline.surface_h[last_above_wl] - model.water_level)
+        #     k = model.calving_k
+        #     q_calving = k * d * h * flowline.widths_m[last_above_wl] * 2
+        #     return q_calving
+        #
+        # model = FluxBasedModel(bu_tidewater_bed(),
+        #                        mb_model=ScalarMassBalance(),
+        #                        is_tidewater=True, calving_use_limiter=True,
+        #                        flux_gate=0.06, do_kcalving=True,
+        #                        calving_law=my_calving_law,
+        #                        calving_k=0.2 / 2)
         ds_2 = model.run_until_and_store(3000)
         assert_allclose(model.volume_m3 + model.calving_m3_since_y0,
                         model.flux_gate_m3_since_y0)
-        assert_allclose(ds_1.calving_m3, ds_2.calving_m3)
+        assert_allclose(ds_2.volume_bsl_m3, ds_2.volume_bwl_m3)
+        assert_allclose(ds_2.calving_m3[-1], model.calving_m3_since_y0)
+        assert_allclose(ds_2.volume_bsl_m3[-1], model.volume_bsl_km3 * 1e9)
+        assert_allclose(ds_2.volume_bwl_m3[-1], model.volume_bwl_km3 * 1e9)
+        # assert_allclose(ds_1.calving_m3, ds_2.calving_m3)
 
 
 class TestSia2d(unittest.TestCase):

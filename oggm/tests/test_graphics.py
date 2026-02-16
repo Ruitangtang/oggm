@@ -51,12 +51,12 @@ def test_surf_to_nan():
     surf = np.array([1., 0, 0, 0, 1])
     thick = np.array([1, 0, 0, 0, 1])
     sh = graphics.surf_to_nan(surf, thick)
-    np.testing.assert_allclose(sh, [1, 0, np.NaN, 0, 1])
+    np.testing.assert_allclose(sh, [1, 0, np.nan, 0, 1])
 
     surf = np.array([1., 0, 0, 0, 0, 1])
     thick = np.array([1, 0, 0, 0, 0, 1])
     sh = graphics.surf_to_nan(surf, thick)
-    np.testing.assert_allclose(sh, [1, 0, np.NaN, np.NaN, 0, 1])
+    np.testing.assert_allclose(sh, [1, 0, np.nan, np.nan, 0, 1])
 
     surf = np.array([1., 0, 1, 0, 1])
     thick = np.array([1, 0, 1, 0, 1])
@@ -267,7 +267,7 @@ def test_multiple_models():
     cfg.PARAMS['use_winter_prcp_fac'] = False
     cfg.PARAMS['use_temp_bias_from_file'] = False
     cfg.PARAMS['prcp_fac'] = 2.5
-    cfg.PARAMS['border'] = 40
+    cfg.PARAMS['border'] = 80
 
     # Get the RGI ID
     hef_rgi = gpd.read_file(get_demo_file('divides_hef.shp'))

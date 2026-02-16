@@ -417,7 +417,7 @@ class TestMassBalanceModels:
         # real data
         h, w = gdir.get_inversion_flowline_hw()
         mbdf = gdir.get_ref_mb_data()
-        mbdf.loc[yr, 'MY_MB'] = np.NaN
+        mbdf.loc[yr, 'MY_MB'] = np.nan
         mb_mod = massbalance.MonthlyTIModel(gdir)
         for yr in mbdf.index.values:
             my_mb_on_h = mb_mod.get_annual_mb(h, yr) * SEC_IN_YEAR * rho
@@ -3356,14 +3356,14 @@ class TestDynamicSpinup:
         # first we artificially produce some errors in hef_gdir using extreme kwargs
         error_settings = {
             'Not able to conduct one error free run. Error is "ice_free"':
-                {'first_guess_t_bias': 100},
+                {'first_guess_t_spinup': 100},
             'The difference between the rgi_date and the start year of the '
             'climate data is too small to run a dynamic spinup!':
                 {'min_spinup_period': 300},
             'The given reference value is Zero, no dynamic spinup possible!':
                 {'init_model_fls': fls_zero_ice},
             'Not able to conduct one error free run. Error is "out_of_domain"':
-                {'first_guess_t_bias': -100},
+                {'first_guess_t_spinup': -100},
             'Could not find mismatch smaller 0.1%':
                 {'precision_percent': 0.1}
         }
@@ -3416,19 +3416,19 @@ class TestDynamicSpinup:
         ye = hef_gdir.get_climate_info()['baseline_yr_1'] + 1
         precision_percent = 1
         precision_absolute = 1
-        model_dynamic_spinup_ye, t_bias = run_dynamic_spinup(
+        model_dynamic_spinup_ye, t_spinup = run_dynamic_spinup(
             hef_gdir,
             spinup_period=40,
             spinup_start_yr=spinup_start_yr,
             target_yr=yr_rgi,
             ye=ye,
-            return_t_bias_best=True,
+            return_t_spinup_best=True,
             minimise_for=minimise_for,
             precision_percent=precision_percent,
             precision_absolute=precision_absolute,
             output_filesuffix='_dynamic_spinup_historical', )
 
-        assert isinstance(t_bias, float)
+        assert isinstance(t_spinup, float)
         assert model_dynamic_spinup_ye.yr == ye
         ds = utils.compile_run_output(
             hef_gdir, input_filesuffix='_dynamic_spinup_historical', path=False)
@@ -3601,13 +3601,13 @@ class TestDynamicSpinup:
             # check that ignore_error is working correctly
             ignore_errors = True
 
-            model_dynamic_spinup_error, t_bias_best = run_dynamic_spinup(
+            model_dynamic_spinup_error, t_spinup_best = run_dynamic_spinup(
                 gdir,
                 minimise_for=minimise_for,
                 output_filesuffix='_dynamic_spinup',
                 maxiter=10,
                 ignore_errors=ignore_errors,
-                return_t_bias_best=True)
+                return_t_spinup_best=True)
 
             # check if model geometry is correctly saved in gdir
             fp = gdir.get_filepath('model_geometry',
@@ -3620,7 +3620,7 @@ class TestDynamicSpinup:
             yr_rgi = gdir.rgi_date + 1  # convert to hydro year
             assert fmod.last_yr == np.clip(yr_rgi, yr_min, None)
             assert len(model_dynamic_spinup_error.fls) == len(fmod.fls)
-            assert np.isnan(t_bias_best)
+            assert np.isnan(t_spinup_best)
 
     @pytest.mark.parametrize('do_inversion', [True, False])
     @pytest.mark.parametrize('minimise_for', ['area', 'volume'])

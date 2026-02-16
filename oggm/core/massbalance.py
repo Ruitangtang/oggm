@@ -201,7 +201,7 @@ class MassBalanceModel(object, metaclass=SuperclassMeta):
                 self.get_annual_mb([b0, b1], year=year, **kwargs))) or
                 (self.get_annual_mb([b0], year=year, **kwargs)[0] > 0) or
                 (self.get_annual_mb([b1], year=year, **kwargs)[0] < 0)):
-            return np.NaN
+            return np.nan
 
         def to_minimize(x):
             return (self.get_annual_mb([x], year=year, **kwargs)[0] *
@@ -707,7 +707,7 @@ class ConstantMassBalance(MassBalanceModel):
         **kwargs:
             keyword arguments to pass to the mb_model_class
         """
-
+        
         super().__init__()
         self.mbmod = mb_model_class(gdir,
                                     **kwargs)
@@ -715,7 +715,7 @@ class ConstantMassBalance(MassBalanceModel):
         if y0 is None:
             raise InvalidParamsError('Please set `y0` explicitly')
 
-        # This is a quick'n dirty optimisation
+        # This is a quick'n dirty optimisation     
         try:
             fls = gdir.read_pickle('model_flowlines')
             h = []
@@ -1347,6 +1347,7 @@ def calving_mb(gdir):
     # Ok. Just take the calving rate from cfg and change its units
     # Original units: km3 a-1, to change to mm a-1 (units of specific MB)
     rho = cfg.PARAMS['ice_density']
+    print("inversion calving rate is",gdir.inversion_calving_rate)
     return gdir.inversion_calving_rate * 1e9 * rho / gdir.rgi_area_m2
 
 
@@ -1489,7 +1490,7 @@ def mb_calibration_from_geodetic_mb(gdir, *,
         ref_period = cfg.PARAMS['geodetic_mb_period']
 
     # Get the reference data
-    ref_mb_err = np.NaN
+    ref_mb_err = np.nan
     try:
         ref_mb_df = get_geodetic_mb_dataframe().loc[gdir.rgi_id]
         ref_mb_df = ref_mb_df.loc[ref_mb_df['period'] == ref_period]
@@ -1894,15 +1895,18 @@ def _check_terminus_mass_flux(gdir, fls):
     # Check that we have done this correctly
     rho = cfg.PARAMS['ice_density']
     cmb = calving_mb(gdir)
-
+    print("calving_mb, cmb is :",cmb)
     # This variable is in "sensible" units normalized by width
     flux = fls[-1].flux_out
+    print("gdir.grid.dx is (m):",gdir.grid.dx)
     aflux = flux * (gdir.grid.dx ** 2) / rho * 1e-9  # km3 ice per year
+    print("aflux is km3 a-1 (calving) which should be zero or very close:",aflux)
 
     # If not marine and a bit far from zero, warning
     if cmb == 0 and not np.allclose(flux, 0, atol=0.01):
         log.info('(%s) flux should be zero, but is: '
                  '%.4f km3 ice yr-1', gdir.rgi_id, aflux)
+        print('(%s) flux should be zero, but is: %.4f km3 ice yr-1', gdir.rgi_id, aflux)
 
     # If not marine and quite far from zero, error
     if cmb == 0 and not np.allclose(flux, 0, atol=1):
@@ -1912,7 +1916,7 @@ def _check_terminus_mass_flux(gdir, fls):
 
 
 @entity_task(log, writes=['inversion_flowlines', 'linear_mb_params'])
-def apparent_mb_from_linear_mb(gdir, mb_gradient=3., ela_h=None):
+def apparent_mb_from_linear_mb(gdir, mb_gradient=3., ela_h=None,filesuffix=''):
     """Compute apparent mb from a linear mass balance assumption (for testing).
 
     This is for testing currently, but could be used as alternative method
@@ -1922,6 +1926,12 @@ def apparent_mb_from_linear_mb(gdir, mb_gradient=3., ela_h=None):
     ----------
     gdir : :py:class:`oggm.GlacierDirectory`
         the glacier directory to process
+    mb_gradient : float
+        the gradient of the mass balance in mm m-1 yr-1
+    ela_h : float
+        the ELA in m a.s.l. (if None, will be optimized)
+    filesuffix: str
+        suffix to append to the inversion_flowlines file
     """
 
     # Do we have a calving glacier?
@@ -1956,15 +1966,15 @@ def apparent_mb_from_linear_mb(gdir, mb_gradient=3., ela_h=None):
 
     # Check and write
     _check_terminus_mass_flux(gdir, fls)
-    gdir.write_pickle(fls, 'inversion_flowlines')
+    gdir.write_pickle(fls, 'inversion_flowlines', filesuffix=filesuffix)
     gdir.write_pickle({'ela_h': ela_h, 'grad': mb_gradient},
-                      'linear_mb_params')
+                      'linear_mb_params', filesuffix=filesuffix)
 
 
 @entity_task(log, writes=['inversion_flowlines'])
 def apparent_mb_from_any_mb(gdir, mb_model=None,
                             mb_model_class=MonthlyTIModel,
-                            mb_years=None):
+                            mb_years=None,filesuffix=''):
     """Compute apparent mb from an arbitrary mass balance profile.
 
     This searches for a mass balance residual to add to the mass balance
@@ -1987,18 +1997,23 @@ def apparent_mb_from_any_mb(gdir, mb_model=None,
         geodetic MB period, i.e. PARAMS['geodetic_mb_period'].
         It does not matter much for the final result, but it should be a
         period long enough to have a representative MB gradient.
+    filesuffix: str
+        suffix to append to the inversion
     """
 
     # Do we have a calving glacier?
     cmb = calving_mb(gdir)
+    print('cmb is (calving mass loss with unit mm a-1):',cmb)
     is_calving = cmb != 0
+    print('is calving:',is_calving)
 
     # For each flowline compute the apparent MB
     fls = gdir.read_pickle('inversion_flowlines')
 
+    #print("mb_model is:",mb_model)
     if mb_model is None:
         mb_model = mb_model_class(gdir)
-
+    #print("mb_model is:",mb_model)
     if mb_years is None:
         mb_years = cfg.PARAMS['geodetic_mb_period']
         y0, y1 = mb_years.split('_')
@@ -2006,17 +2021,25 @@ def apparent_mb_from_any_mb(gdir, mb_model=None,
         y1 = int(y1.split('-')[0])
         mb_years = np.arange(y0, y1, 1)
 
+    print("mb_years:",mb_years)
+
     if len(mb_years) == 2:
         # Range
         mb_years = np.arange(*mb_years, 1)
 
     # Unchanged SMB
-    o_smb = np.mean(mb_model.get_specific_mb(fls=fls, year=mb_years))
 
+    o_smb = np.mean(mb_model.get_specific_mb(fls=fls, year=mb_years))
+    print("o_smb is (mm w.e. yr-1):",o_smb)
+    print("cmb is ",cmb)
     def to_minimize(residual_to_opt):
         return o_smb + residual_to_opt - cmb
 
-    residual = optimize.brentq(to_minimize, -1e5, 1e5)
+    try:
+        residual = optimize.brentq(to_minimize, -1e5, 1e5)
+        print("residual is (mm w.e. yr-1):",residual)
+    except:
+        print("------------Something is wrong when calculating residul------------")
 
     # Reset flux
     for fl in fls:
@@ -2024,23 +2047,34 @@ def apparent_mb_from_any_mb(gdir, mb_model=None,
 
     # Flowlines in order to be sure
     rho = cfg.PARAMS['ice_density']
+    #print("rho of ice is (kg m-3)",rho)
     for fl_id, fl in enumerate(fls):
         mbz = 0
         for yr in mb_years:
             mbz += mb_model.get_annual_mb(fl.surface_h, year=yr,
                                           fls=fls, fl_id=fl_id)
+            #print("year is:",yr)
         mbz = mbz / len(mb_years)
+        #print("mbz is (m of ice per second)",mbz)
         fl.set_apparent_mb(mbz * cfg.SEC_IN_YEAR * rho + residual,
                            is_calving=is_calving)
+        print('*****************************************************************')
+        #print("the apparent mb is set, and the apparent_mb  is (mm w.e. a-1) :",fl.apparent_mb)
+        #print("the flux (mm w.e. a-1) is  :",fl.flux)
+        print("the flux out (mm w.e. a-1) is :",fl.flux_out)
+        print("correct the flux is:",fl.flux_needs_correction)
+        print('*****************************************************************')
         if fl_id < len(fls) and fl.flux_out < -1e3:
             log.warning('({}) a tributary has a strongly negative flux. '
                         'Inversion works but is physically quite '
                         'questionable.'.format(gdir.rgi_id))
-
+            print('({}) a tributary has a strongly negative flux. Inversion works but is physically quite ,questionable.'.format(gdir.rgi_id))
+        #print("fl_id is:",fl_id)
     # Check and write
     _check_terminus_mass_flux(gdir, fls)
-    gdir.add_to_diagnostics('apparent_mb_from_any_mb_residual', residual)
-    gdir.write_pickle(fls, 'inversion_flowlines')
+    gdir.add_to_diagnostics('apparent_mb_from_any_mb_residual', residual,filesuffix=filesuffix)
+    gdir.write_pickle(fls, 'inversion_flowlines',filesuffix=filesuffix)
+    #print("apparent_mb_from_any_mb is successful")
 
 
 @entity_task(log)

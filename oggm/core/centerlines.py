@@ -290,6 +290,11 @@ class Centerline(object, metaclass=SuperclassMeta):
         # Add MB to current flux and sum
         # no more changes should happen after that
         smb = mb * self.widths * self.dx
+        print("is_calving in set_apparent_mb is:",is_calving)
+        # self.widths, self.dx with the unit is 1
+        #print("self.widths is:",self.widths)
+        #print("self.dx :",self.dx)
+        #print("self.widths_m:",self.widths_m)
         if is_calving:
             # in a calving case we see the last grid cell as the calving cell
             # and the extra added cell has no meaning
@@ -299,11 +304,18 @@ class Centerline(object, metaclass=SuperclassMeta):
             # shifted one position and subtracted only after the ice flew
             # through the cell
             smb_pos = np.concatenate((np.where(smb > 0, smb, 0), [0]))
+            #print("smb_pos (mm a-1) is :",smb_pos)
             smb_neg = np.concatenate(([0], np.where(smb < 0, smb, 0)))
+            #print("smb_neg (mm a-1) is :",smb_neg)
             smb_add = smb_pos + smb_neg
+            #print("smb_add (mm a-1) is :",smb_add)
+        #print("self.flux is :",self.flux)
         flux_ext = np.concatenate((self.flux, [0]))
+        #print("flux_ext is :",flux_ext)
         flux_needs_correction = False
+        #print("flux_ext+smb_add is :",flux_ext+smb_add)
         flux = np.cumsum(flux_ext + smb_add)
+        #print("flux in Centerline.set_apparent_mb (mm a-1) is :",flux)
 
         # We filter lines with a negative flux at the last grid point, the
         # threshold of -1e-5 is needed to avoid problems with numeric precision
@@ -314,6 +326,8 @@ class Centerline(object, metaclass=SuperclassMeta):
         self.flux_out = flux[-1]
         self.flux_needs_correction = flux_needs_correction
 
+        print("self.flows_to is :",self.flows_to)
+        print("self.flux_needs_correction is :",self.flux_needs_correction)
         # Add to outflow. That's why it should happen in order
         if self.flows_to is not None:
             n = len(self.flows_to.line.coords)
@@ -685,8 +699,8 @@ def _make_costgrid(mask, ext, z):
     numpy.array of the costgrid
     """
 
-    dis = np.where(mask, distance_transform_edt(mask), np.NaN)
-    z = np.where(mask, z, np.NaN)
+    dis = np.where(mask, distance_transform_edt(mask), np.nan)
+    z = np.where(mask, z, np.nan)
 
     dmax = np.nanmax(dis)
     zmax = np.nanmax(z)
@@ -1132,8 +1146,8 @@ def _parabolic_bed_from_topo(gdir, idl, interpolator):
     for ic, (cc, dontcomp) in enumerate(zip(cs, donot_compute)):
 
         if dontcomp:
-            bed.append(np.NaN)
-            terrain_heights.append(np.NaN)
+            bed.append(np.nan)
+            terrain_heights.append(np.nan)
             continue
 
         z = []
@@ -1154,8 +1168,8 @@ def _parabolic_bed_from_topo(gdir, idl, interpolator):
         # find local minima in set of distances
         extr = scipy.signal.argrelextrema(dsts, np.less, mode='wrap')
         if len(extr[0]) == 0:
-            bed.append(np.NaN)
-            terrain_heights.append(np.NaN)
+            bed.append(np.nan)
+            terrain_heights.append(np.nan)
             continue
 
         # from local minima find that with the minimum |x|
@@ -1190,7 +1204,7 @@ def _parabolic_bed_from_topo(gdir, idl, interpolator):
         if err < 1.5:
             bed.append(p2[0])
         else:
-            bed.append(np.NaN)
+            bed.append(np.nan)
 
     terrain_heights = np.asarray(terrain_heights)
     assert len(terrain_heights) == idl.nx, 'len(terrain_heights) == idl.nx'
@@ -1396,7 +1410,7 @@ def _point_width(normals, point, centerline, poly, poly_no_nunataks):
                 oline = l
                 break
         if oline is None:
-            return np.NaN, shpg.MultiLineString()
+            return np.nan, shpg.MultiLineString()
         line = oline
     else:
         extext = 'Geometry collection not expected: {}'.format(line.geom_type)
@@ -1409,7 +1423,7 @@ def _point_width(normals, point, centerline, poly, poly_no_nunataks):
         try:
             line = shpg.MultiLineString([line])
         except shapely.errors.EmptyPartError:
-            return np.NaN, shpg.MultiLineString()
+            return np.nan, shpg.MultiLineString()
     elif line.geom_type == 'MultiLineString':
         pass  # nothing to be done
     elif line.geom_type == 'GeometryCollection':
@@ -1419,7 +1433,7 @@ def _point_width(normals, point, centerline, poly, poly_no_nunataks):
                 continue
             oline.append(l)
         if len(oline) == 0:
-            return np.NaN, shpg.MultiLineString()
+            return np.nan, shpg.MultiLineString()
         line = shpg.MultiLineString(oline)
     else:
         extext = 'Geometry collection not expected: {}'.format(line.geom_type)
@@ -1441,7 +1455,7 @@ def _filter_small_slopes(hgt, dx, min_slope):
     slope[-1] = min_slope
 
     # Find the locs where it doesn't work and expand till we got everything
-    slope_mask = np.where(slope >= min_slope, slope, np.NaN)
+    slope_mask = np.where(slope >= min_slope, slope, np.nan)
     r, nr = label(~np.isfinite(slope_mask))
     for objs in find_objects(r):
         obj = objs[0]
@@ -1456,9 +1470,9 @@ def _filter_small_slopes(hgt, dx, min_slope):
             current_slope = np.arctan(-np.gradient(nhgt, ngap * dx))
             if i0 <= 0 or current_slope[0] >= min_slope:
                 break
-        slope_mask[i0:obj.stop] = np.NaN
+        slope_mask[i0:obj.stop] = np.nan
     out = hgt.copy()
-    out[~np.isfinite(slope_mask)] = np.NaN
+    out[~np.isfinite(slope_mask)] = np.nan
     return out
 
 
@@ -1488,7 +1502,7 @@ def _filter_for_altitude_range(widths, wlines, topo):
             altrange = topo[yc, xc]
             if len(np.where(np.isfinite(altrange))[0]) != 0:
                 if (np.nanmax(altrange) - np.nanmin(altrange)) > alt_range_th:
-                    out_width[i] = np.NaN
+                    out_width[i] = np.nan
 
         valid = np.where(np.isfinite(out_width))
         if len(valid[0]) > 0:
@@ -1840,8 +1854,8 @@ def catchment_width_geom(gdir):
         topo = nc.variables['topo'][:]
         mask_ext = nc.variables['glacier_ext'][:]
         mask_glacier = nc.variables['glacier_mask'][:]
-    topo[np.where(mask_glacier == 0)] = np.NaN
-    topo[np.where(mask_ext == 1)] = np.NaN
+    topo[np.where(mask_glacier == 0)] = np.nan
+    topo[np.where(mask_ext == 1)] = np.nan
 
     # Intersects between catchments/glaciers
     gdfi = gpd.GeoDataFrame(columns=['geometry'])
@@ -1906,7 +1920,7 @@ def catchment_width_geom(gdir):
         for fid in fl.inflow_indices:
             i0 = int(utils.clip_scalar(fid-jpix, jpix/2, n-jpix/2))
             i1 = int(utils.clip_scalar(fid+jpix+1, jpix/2, n-jpix/2))
-            fil_widths[i0:i1] = np.NaN
+            fil_widths[i0:i1] = np.nan
 
         valid = np.where(np.isfinite(fil_widths))
         if len(valid[0]) == 0:
@@ -1956,7 +1970,7 @@ def catchment_width_correction(gdir):
     with utils.ncDataset(fpath) as nc:
         topo = nc.variables['topo'][:]
         ext = nc.variables['glacier_ext'][:]
-    topo[np.where(ext == 1)] = np.NaN
+    topo[np.where(ext == 1)] = np.nan
 
     # Param
     nmin = int(cfg.PARAMS['min_n_per_bin'])
@@ -2103,7 +2117,7 @@ def terminus_width_correction(gdir, new_width=None):
 
     # Change the value and interpolate
     width = copy.deepcopy(fl.widths)
-    width[-5:] = np.NaN
+    width[-5:] = np.nan
     width[-1] = new_width / mapdx
     width = utils.interp_nans(width)
 
@@ -2281,7 +2295,7 @@ def elevation_band_flowline(gdir, bin_variables=None, preserve_totals=True):
             # Ignored in this case - which I believe is strange because deltaH
             # should be larger for the previous bin, but this is what they do
             # according to Zekollari 2019 review
-            df.loc[bi, 'area'] = np.NaN
+            df.loc[bi, 'area'] = np.nan
             continue
         df.loc[bi, 'area'] = bin_area
 
