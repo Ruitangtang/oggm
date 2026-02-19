@@ -238,18 +238,8 @@ def fa_sermeq_speed_law(model,last_above_wl, mb_current = None,v_scaling=1, verb
     width_m = flowline.widths_m
     length_m = flowline.length_m
     
-    # u_stag[-1] is the main flowline
     velocity_m = model.u_stag[-1]*cfg.SEC_IN_YEAR
-    #print('velocity_m along the flowline is', velocity_m)
     x_m = flowline.dis_on_line*flowline.map_dx
-    #print('x_m in fa_sermq_law is :',x_m)
-
-    # gdir : py:class:`oggm.GlacierDirectory`
-    #     the glacier directory to process
-    # fls = model.gdir.read_pickle('model_flowlines')
-    # mbmod_fl = massbalance.MultipleFlowlineMassBalance(model.gdir, fls=fls, use_inversion_flowlines=True,
-    #                                                    mb_model_class=MonthlyTIModel)
-    #mb_annual=model.mb_model.get_annual_mb(heights=surface_m, fl_id=-1, year=model.yr, fls=model.fls)
     #  should call the monthly function
     if mb_current is None:
         if mb_elev_feedback=='monthly':
@@ -257,21 +247,17 @@ def fa_sermeq_speed_law(model,last_above_wl, mb_current = None,v_scaling=1, verb
         else:
             mb_annual=model.mb_model.get_annual_mb(heights=surface_m, fl_id=-1, year=model.yr, fls=model.fls)
 
-        #print("mb_annual is (m ice per second):",mb_annual,"in year",model.yr,"Actually is monthly output")
     else:
         mb_annual=mb_current
 
     Terminus_mb = mb_annual*cfg.SEC_IN_YEAR
-    #print("Terminus mass balance is (m per year):",Terminus_mb)
     # slice up to index+1 to include the last nonzero value
     # profile: NDarray
     #     The current profile (x, surface, bed,width) as calculated by the base model
     #     Unlike core SERMeQ, these should be DIMENSIONAL [m].
-    print("The last above wl is (In fa_sermeq_speed_law) :",last_above_wl)
     profile=(x_m[:last_above_wl+1],
                  surface_m[:last_above_wl+1],
                  bed_m[:last_above_wl+1],width_m[:last_above_wl+1])
-    #print("bed_h of the flowline using to do calving is :", bed_m[:last_above_wl+1])
     # model_velocity: array
     #     Velocity along the flowline [m/a] as calculated by the base model
     #     Should have values for the points nearest the terminus...otherwise
@@ -280,7 +266,6 @@ def fa_sermeq_speed_law(model,last_above_wl, mb_current = None,v_scaling=1, verb
     model_velocity=velocity_m[:last_above_wl+1]
     # remove lowest cells if needed
     last_index = -1 * (trim_profile + 1)
-    print("last_index is :",last_index)
     ## TODO: Check the flowline model, the decrease the distance between two adjacent points along the flowline, and then calculate the averaged gradient for dhdx,dhydx,dudx
     ##
     if isinstance(Terminus_mb, (int, float)):
@@ -301,51 +286,36 @@ def fa_sermeq_speed_law(model,last_above_wl, mb_current = None,v_scaling=1, verb
     ## Ice thickness and yield thickness nearest the terminuss
     se_terminus = profile[1][last_index]
     bed_terminus = profile[2][last_index]
-    #print("the surface at the terminus is (m a.s.l.) :",se_terminus)
-    #print("the bed at the terminus is (m a.s.l.) :",bed_terminus)
     h_terminus = se_terminus - bed_terminus
     width_terminus = profile[3][last_index]
-    tau_y_terminus = tau_y(tau0=tau0, bed_elev=bed_terminus, thick=h_terminus, variable_yield=variable_yield)
-    print('tau_y_terminus in fa_sermeq_speed_law is:',tau_y_terminus)  
+    tau_y_terminus = tau_y(tau0=tau0, bed_elev=bed_terminus, thick=h_terminus, variable_yield=variable_yield) 
     Hy_terminus = balance_thickness(yield_strength=tau_y_terminus, bed_elev=bed_terminus)
-    print('Hy_terminus in fa_sermeq_speed_law is:',Hy_terminus)  
     if isinstance(model_velocity, (int, float)):
         U_terminus = model_velocity
         U_adj = model_velocity
     else:
         U_terminus = model_velocity[last_index]  ## velocity, assuming last point is terminus
         U_adj = model_velocity[last_index - 1]
-    print(f"the U terminus and adj are (m a-1): {U_terminus} and {U_adj}")
 
     ## Ice thickness and yield thickness at adjacent point
     se_adj = profile[1][last_index - 1]
     bed_adj = profile[2][last_index - 1]
-    #print("the surface at the grid backbefore the terminus (adj) (m a.s.l.) is :" ,se_adj)
-    #print("the bed at the grid backbefore the terminus (adj) (m a.s.l.) is :" ,bed_adj)
     H_adj = se_adj - bed_adj
-    print("H_adj in fa_sermeq_speed_law is :",H_adj,"h_terminus in fa_sermeq_speed_law is :",h_terminus)
     tau_y_adj = tau_y(tau0=tau0, bed_elev=bed_adj, thick=H_adj, variable_yield=variable_yield)
     #print('tau_y_adj in fa_sermeq_speed_law is:',tau_y_adj)
     Hy_adj = balance_thickness(yield_strength=tau_y_adj, bed_elev=bed_adj)
-    print('Hy_adj in fa_sermeq_speed_law is:',Hy_adj)
     # Gradients
     dx_term = profile[0][last_index] - profile[0][last_index - 1]  ## check grid spacing close to terminus
     if dx_term <= 0.0 :
         raise RuntimeError('DX_TERM IS LESS THEN ZERO')
     dHdx = (h_terminus - H_adj) / dx_term
-    # if dHdx >= 0.0 :
-    #     raise RuntimeError('DHDX_TERM IS LESS THEN ZERO')
     dHydx = (Hy_terminus - Hy_adj) / dx_term
-    # if dHydx <= 0.0 :
-    #     raise RuntimeError('DHYDX_TERM IS LESS THEN ZERO')
-    print("dHdx is :",dHdx,"dHydx is :",dHydx)
     if np.isnan(U_terminus) or np.isnan(U_adj):
         dUdx = np.nan  ## velocity gradient
         ## Group the terms
         dLdt_numerator = np.nan
         dLdt_denominator = np.nan  ## TODO: compute dHydx
         dLdt_viscoplastic = np.nan
-        # fa_viscoplastic = dLdt_viscoplastic -U_terminus  ## frontal ablation rate
         fa_viscoplastic = np.nan  ## frontal ablation rate
     else:
         # Gradients
@@ -356,22 +326,13 @@ def fa_sermeq_speed_law(model,last_above_wl, mb_current = None,v_scaling=1, verb
         ## Group the terms
         dLdt_numerator = terminus_mb - (h_terminus * dUdx) - (U_terminus * dHdx)
         dLdt_denominator = dHydx - dHdx  ## TODO: compute dHydx
-        print('dLdt_numerator',dLdt_numerator)
-        print('dLdt_denominator',dLdt_denominator)
         dLdt_viscoplastic = dLdt_numerator / dLdt_denominator
         # check the length change rate should be constrained by smaller than the original length
         if abs(dLdt_viscoplastic) >= length_m:
             print("The absolute length change rate is larger than or equal to the original length, please check the input data and model results")
             # set the length change rate as nan
             dLdt_viscoplastic = np.nan
-        # if dLdt_denominator < 0:
-        #     raise RuntimeError('DHYDX-DHDX IS LESS THEN ZERO')
-        # elif dLdt_denominator == 0:
-        #     raise RuntimeError('DHYDX-DHDX IS ZERO')
 
-        # fa_viscoplastic = dLdt_viscoplastic -U_terminus  ## frontal ablation rate
-        
-        # try:
         U_calving = U_terminus - dLdt_viscoplastic  ## frontal ablation rate
         # add the constraint that the frontal ablation should be non-negative and not infinite by constrain terminus velocity, no more than 5000 m/a
         # we just set the frontal ablation as zero when the terminus velocity is larger than 5000 m/a, which is not realistic for most of the tidewater glaciers,
@@ -848,10 +809,7 @@ class CalvingFluxBasedModelJanRt(FlowlineModel):
                 # We calculate the "baseline" calving flux here to be consistent
                 # with the dynamics:
                     k = self.calving_k
-                    print("calving_k before the fa_sermeq_speed_law is :",k)
                     if self.calving_law == fa_sermeq_speed_law:
-                        print("before calving")
-                        print("model.yr is :",self.yr)
                         try:
                             # Transit the unit of tau0 to Pa, based on the equation self.calving_k= calving_k/cfg.SEC_IN_YEAR
                             # tau0 = self.calving_k * cfg.SEC_IN_YEAR
@@ -943,35 +901,6 @@ class CalvingFluxBasedModelJanRt(FlowlineModel):
             # mb_current = self.get_mb(fl.surface_h, self.yr,
             #                        fl_id=fl_id, fls=self.fls, store_monthly_step=True)
             mbs.append(mb_current)
-            #mbs.append(self.get_mb(fl.surface_h, self.yr,
-            #                       fl_id=fl_id, fls=self.fls,store_monthly_step=True))
-            # # calculate the calving rate
-            # if self.do_calving and fl.has_ice() and np.any(ice_below_wl):
-            #     k = self.calving_k
-            #     print("calving_k before the fa_sermeq_speed_law is :",k)
-            #     if self.calving_law == fa_sermeq_speed_law:
-            #         print("before calving")
-            #         print("model.yr is :",self.yr)
-            #         try:
-            #             # Transit the unit of tau0 to Pa, based on the equation self.calving_k= calving_k/cfg.SEC_IN_YEAR
-            #             # tau0 = self.calving_k * cfg.SEC_IN_YEAR
-            #             s_fa = self.calving_law(self, last_above_wl,mb_current = mb_current,v_scaling = 1, verbose = False,tau0 = k*cfg.SEC_IN_YEAR,
-            #                                 variable_yield=self.variable_yield, mu = 0.01,trim_profile = 0,mb_elev_feedback = self.mb_elev_feedback)
-            #             calving_flux = s_fa ['Sermeq_fa']*s_fa['Thickness_termi']*s_fa['Width_termi']/cfg.SEC_IN_YEAR
-            #             # length_change_rate
-            #             dLdt = s_fa['dLdt']
-            #             self.length_change_rate_myr = dLdt
-            #             # velocity at the calving front
-            #             U_term = s_fa['Velocity_termi']
-            #             self.velocity_at_calving_front_myr = U_term
-            #             self.thickness_at_calving_front_m = s_fa['Thickness_termi']
-            #             self.width_at_calving_front_m = s_fa['Width_termi']
-            #         except RuntimeError:
-            #             traceback.print_exception(*sys.exc_info())
-            #     else:
-            #         calving_flux = self.calving_law(self, fl, last_above_wl)
-
-            #     self.calving_flux = utils.clip_min(0, calving_flux)
     
         # Time step
         if self.fixed_dt:
@@ -1185,9 +1114,7 @@ class CalvingFluxBasedModelJanRt(FlowlineModel):
             fl.section = section
 
         # Next step
-        # print("before step , self.t is :",self.t)
         self.t += dt
-        # print("after step , self.t is :",self.t)
         return dt
 
 
