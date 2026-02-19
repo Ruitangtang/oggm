@@ -128,7 +128,6 @@ def prepare_for_inversion(gdir, add_debug_var=False,
         # Clip flux to 0
         if np.any(flux < -0.1):
             log.info('(%s) has negative flux somewhere', gdir.rgi_id)
-            print('(%s) has negative flux somewhere', gdir.rgi_id)
         utils.clip_min(flux, 0, out=flux)
 
         if np.sum(flux <= 0) > 1 and len(fls) == 1:
@@ -225,16 +224,6 @@ def _compute_thick(a0s, a3, flux_a0, shape_factor, _inv_function):
     if out_thick.size == 1:
         return out_thick[0]
 
-    # # Solve the polynomials
-    # try:
-    #     out_thick = np.zeros(len(a0s))
-    #     for i,(a0,a3,Q) in enumerate(zip(a0s,a3s, flux_a0)):
-    #         #print("the", i, "iteration in the _compute_thick")
-    #         out_thick[i] = _inv_function(a3, a0) if Q > 0 else 0
-    # except TypeError:
-    #     # Scalar
-    #     # print("*********************TypeError in _compute_thick*********************")
-    #     out_thick = _inv_function(a3, a0s) if flux_a0 > 0 else 0
 
     if np.any(~np.isfinite(out_thick)):
         raise RuntimeError('non-finite coefficients in the polynomial.')
@@ -698,19 +687,6 @@ def fa_sermeq_speed_law_inv(gdir=None,mb_model=None,  mb_years=None, last_above_
         try:    
             
             #TODO add the fls and fl_id in the input argument of function mean_mb_model.get_annual_mb(heights=surface_m)
-            #fls = gdir.read_pickle('inversion_flowlines')
-            # print("######################### before call the get_annual_mb function #########################")
-            # print("fls is : ",fls)
-            # fl_id = 0
-            # print("fl_id is :",fl_id)
-            # print("######################### before call the get_annual_mb function #########################")
-            # mean_mb_annual=surface_m * 0.
-            # for y in range(len(mb_years)):
-            #     mean_mb_annual+=mb_model.get_annual_mb(fls = fls, fl_id = -1, heights=surface_m, year=y)
-            #     print('y in fa_sermeq_speed_law_inv is :',y)
-            # mean_mb_annual=mean_mb_annual/float(len(mb_years))
-            # print("mean_mb_annual is (m ice per second):",mean_mb_annual)
-
             # Terminus_mb = mean_mb_annual*cfg.SEC_IN_YEAR
             #Note: In the function, fa_sermeq_speed_law_inv, change the mb_annual = flowline.apparent_mb,
             # to make consistent with the apparent flux of the flowline, in the bed inversion process
@@ -1059,7 +1035,6 @@ def mass_conservation_inversion(gdir, glen_a=None, fs=None, write=True,
                         f"v={np.min(out_thick)}.")
 
         out_thick = utils.clip_min(out_thick, 0)
-        #print("the out_thick after mass_conservation_inversion is :",out_thick)
         if write:
             cl['is_trapezoid'] = is_trap
             cl['is_rectangular'] = is_rect
@@ -1085,7 +1060,6 @@ def mass_conservation_inversion(gdir, glen_a=None, fs=None, write=True,
                                                         fac, t_lambda,
                                                         cl['dx'], water_level)
             except KeyError:
-                # cl['hgt'] is not available on old prepro dirs
                 pass
 
         out_volume += np.sum(volume)
@@ -1094,8 +1068,6 @@ def mass_conservation_inversion(gdir, glen_a=None, fs=None, write=True,
         gdir.write_pickle(cls, 'inversion_output', filesuffix=filesuffix)
         gdir.add_to_diagnostics('inversion_glen_a', glen_a,filesuffix=filesuffix)
         gdir.add_to_diagnostics('inversion_fs', fs,filesuffix=filesuffix)
-
-    #print("==================== mass_conservation_inversion is successful ====================")
 
     return out_volume
 
@@ -1651,7 +1623,6 @@ def calving_flux_from_depth(gdir, mb_model=None,mb_years=None,k=None, water_leve
         thick = cl['thick'][-1]
     if water_depth is None:
         water_depth = thick - free_board
-        #print("the water_depth in inversion is",water_depth)
     elif not fixed_water_depth:
         # Correct thickness with prescribed water depth
         # If fixed_water_depth=True then we forget about t_altitude
