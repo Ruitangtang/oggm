@@ -1347,7 +1347,6 @@ def calving_mb(gdir):
     # Ok. Just take the calving rate from cfg and change its units
     # Original units: km3 a-1, to change to mm a-1 (units of specific MB)
     rho = cfg.PARAMS['ice_density']
-    print("inversion calving rate is",gdir.inversion_calving_rate)
     return gdir.inversion_calving_rate * 1e9 * rho / gdir.rgi_area_m2
 
 
@@ -1895,12 +1894,9 @@ def _check_terminus_mass_flux(gdir, fls):
     # Check that we have done this correctly
     rho = cfg.PARAMS['ice_density']
     cmb = calving_mb(gdir)
-    print("calving_mb, cmb is :",cmb)
     # This variable is in "sensible" units normalized by width
     flux = fls[-1].flux_out
-    print("gdir.grid.dx is (m):",gdir.grid.dx)
     aflux = flux * (gdir.grid.dx ** 2) / rho * 1e-9  # km3 ice per year
-    print("aflux is km3 a-1 (calving) which should be zero or very close:",aflux)
 
     # If not marine and a bit far from zero, warning
     if cmb == 0 and not np.allclose(flux, 0, atol=0.01):
@@ -2003,25 +1999,19 @@ def apparent_mb_from_any_mb(gdir, mb_model=None,
 
     # Do we have a calving glacier?
     cmb = calving_mb(gdir)
-    print('cmb is (calving mass loss with unit mm a-1):',cmb)
     is_calving = cmb != 0
-    print('is calving:',is_calving)
 
     # For each flowline compute the apparent MB
     fls = gdir.read_pickle('inversion_flowlines')
 
-    #print("mb_model is:",mb_model)
     if mb_model is None:
         mb_model = mb_model_class(gdir)
-    #print("mb_model is:",mb_model)
     if mb_years is None:
         mb_years = cfg.PARAMS['geodetic_mb_period']
         y0, y1 = mb_years.split('_')
         y0 = int(y0.split('-')[0])
         y1 = int(y1.split('-')[0])
         mb_years = np.arange(y0, y1, 1)
-
-    print("mb_years:",mb_years)
 
     if len(mb_years) == 2:
         # Range
@@ -2030,14 +2020,11 @@ def apparent_mb_from_any_mb(gdir, mb_model=None,
     # Unchanged SMB
 
     o_smb = np.mean(mb_model.get_specific_mb(fls=fls, year=mb_years))
-    print("o_smb is (mm w.e. yr-1):",o_smb)
-    print("cmb is ",cmb)
     def to_minimize(residual_to_opt):
         return o_smb + residual_to_opt - cmb
 
     try:
         residual = optimize.brentq(to_minimize, -1e5, 1e5)
-        print("residual is (mm w.e. yr-1):",residual)
     except:
         print("------------Something is wrong when calculating residul------------")
 
@@ -2047,34 +2034,23 @@ def apparent_mb_from_any_mb(gdir, mb_model=None,
 
     # Flowlines in order to be sure
     rho = cfg.PARAMS['ice_density']
-    #print("rho of ice is (kg m-3)",rho)
     for fl_id, fl in enumerate(fls):
         mbz = 0
         for yr in mb_years:
             mbz += mb_model.get_annual_mb(fl.surface_h, year=yr,
                                           fls=fls, fl_id=fl_id)
-            #print("year is:",yr)
         mbz = mbz / len(mb_years)
-        #print("mbz is (m of ice per second)",mbz)
         fl.set_apparent_mb(mbz * cfg.SEC_IN_YEAR * rho + residual,
                            is_calving=is_calving)
-        print('*****************************************************************')
-        #print("the apparent mb is set, and the apparent_mb  is (mm w.e. a-1) :",fl.apparent_mb)
-        #print("the flux (mm w.e. a-1) is  :",fl.flux)
-        print("the flux out (mm w.e. a-1) is :",fl.flux_out)
-        print("correct the flux is:",fl.flux_needs_correction)
-        print('*****************************************************************')
         if fl_id < len(fls) and fl.flux_out < -1e3:
             log.warning('({}) a tributary has a strongly negative flux. '
                         'Inversion works but is physically quite '
                         'questionable.'.format(gdir.rgi_id))
             print('({}) a tributary has a strongly negative flux. Inversion works but is physically quite ,questionable.'.format(gdir.rgi_id))
-        #print("fl_id is:",fl_id)
     # Check and write
     _check_terminus_mass_flux(gdir, fls)
     gdir.add_to_diagnostics('apparent_mb_from_any_mb_residual', residual,filesuffix=filesuffix)
     gdir.write_pickle(fls, 'inversion_flowlines',filesuffix=filesuffix)
-    #print("apparent_mb_from_any_mb is successful")
 
 
 @entity_task(log)
