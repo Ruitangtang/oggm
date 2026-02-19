@@ -45,6 +45,7 @@ from oggm.core.massbalance import (MultipleFlowlineMassBalance,
                                    RandomMassBalance)
 from oggm.core.centerlines import Centerline, line_order
 from oggm.core.inversion import find_sia_flux_from_thickness
+from oggm.core.calving_Jan_Ruitang import fa_sermeq_speed_law
 
 # Constants
 from oggm.cfg import SEC_IN_DAY, SEC_IN_YEAR
@@ -930,155 +931,6 @@ class FlowlineModel(object):
 
         return self._mb_current_out[fl_id]
 
-#     def get_mb(self, heights, year=None, fl_id=None, fls=None,store_monthly_step=False):
-#         """Get the mass balance at the requested height and time.
-
-#         Optimized so that no mb model call is necessary at each step.
-#         """
-        
-#         print("******************** get_mb start *********************")
-#         # Do we even have to optimise?
-#         if self.mb_elev_feedback == 'always':
-#             return self._mb_call(heights, year=year, fl_id=fl_id, fls=fls)
-
-#         # Ok, user asked for it
-#         if fl_id is None:
-#             raise ValueError('Need fls_id')
-
-#         if self.mb_elev_feedback == 'never':
-#             # The very first call we take the heights
-#             if fl_id not in self._mb_current_heights:
-#                 # We need to reset just this tributary
-#                 self._mb_current_heights[fl_id] = heights
-#             # All calls we replace
-#             heights = self._mb_current_heights[fl_id]
-#         #if store_monthly_step:
-#             #date = utils.floatyear_to_date_Decimal(year)
-# #
-#         y,m = utils.floatyear_to_date(year)
-    
-#         # if self.mb_elev_feedback in ['annual', 'never']:
-#         #     # ignore month changes
-#         #     date = (date[0], date[0])
-#         # Use a unified "date index" system
-#         if self.mb_elev_feedback in ['annual', 'never']:
-#             # Collapse to year index only
-#             current_date_index = int(y)
-#         else:
-#             # Use full year+month index
-#             current_date_index = int(y) * 12 + (m - 1)
-        
-#         print(f"Year: {y}, Month: {m}, Current Date Index: {current_date_index}")
-#         print(f"Current _mb_current_date: {self._mb_current_date}")
-#         # if current_date_index == 0:
-#         #     self._mb_current_date = 0
-#         # print(f"Current _mb_current_date: {self._mb_current_date}")
-#         # print("current_date_index hear is :",current_date_index)
-#         # #print("date_1 hear is :",date_1)
-#         # print ("self._mb_current_date :",self._mb_current_date)
-#         print("self.mb_elev_feedback is :",self.mb_elev_feedback)
-#         print("year in get_mb is :",year)
-#         print("fl_id in get_mb is :",fl_id)
-#         print("fls in get_mb is :",fls)
-#         if self._mb_current_date == current_date_index:
-#             print("self._mb_current_date == current_date_index")
-#             print ("fl_id is :",fl_id)
-#             #print("self._mb_current_out is :",self._mb_current_out)
-#             if fl_id not in self._mb_current_out:
-#                 # We need to reset just this tributary
-#                 try :
-#                     self._mb_current_out[fl_id] = self._mb_call(heights,
-#                                                                 year=year,
-#                                                                 fl_id=fl_id,
-#                                                                 fls=fls)
-#                 except:
-#                     print("something in self._mb_call is wrong")
-#                     print(traceback.format_exc())
-#         else:
-#             # We need to reset all
-#             print("we need to reset all")
-#             self._mb_current_date = current_date_index
-#             self._mb_current_out = dict()
-#             #print("heights is :", heights,"year is :",year,"fl_id is :",fl_id,"fls is :",fls)
-#             try:
-#                 self._mb_current_out[fl_id] = self._mb_call(heights,
-#                                                             year=year,
-#                                                             fl_id=fl_id,
-#                                                             fls=fls)
-#             except:
-#                 print("something in self._mb_call is wrong")
-#                 print(traceback.format_exc())
-
-#         print("********************* get_mb end **********************")
-#         return self._mb_current_out[fl_id]
-
-
-    # def get_mb_Decimal(self, heights, year=None, fl_id=None, fls=None):
-    #     """Get the mass balance at the requested height and time.
-
-    #     Optimized so that no mb model call is necessary at each step.
-    #     It's almost same as get_mb, but it returns Decimal instead of float
-    #     @ Ruitang revised it 
-    #     To handle floating-point and numerical precision issues effectively
-    #     """
-
-    #     # Do we even have to optimise?
-    #     if self.mb_elev_feedback == 'always':
-    #         return self._mb_call(heights, year=year, fl_id=fl_id, fls=fls)
-
-    #     # Ok, user asked for it
-    #     if fl_id is None:
-    #         raise ValueError('Need fls_id')
-
-    #     if self.mb_elev_feedback == 'never':
-    #         # The very first call we take the heights
-    #         if fl_id not in self._mb_current_heights:
-    #             # We need to reset just this tributary
-    #             self._mb_current_heights[fl_id] = heights
-    #         # All calls we replace
-    #         heights = self._mb_current_heights[fl_id]
-
-    #     date = utils.floatyear_to_date_Decimal(year)
-    #     if self.mb_elev_feedback in ['annual', 'never']:
-    #         # ignore month changes
-    #         date = (date[0], date[0])
-
-    #     print("date hear is (get_mb_Deciaml) :",date)
-    #     print ("self._mb_current_date :",self._mb_current_date)
-    #     print("year in get_mb_Decimal is :",year)
-    #     print("self.mb_elev_feedback is :",self.mb_elev_feedback)
-    #     if self._mb_current_date == date:
-    #         print("self._mb_current_date == date")
-    #         print ("fl_id is :",fl_id)
-    #         #print("self._mb_current_out is :",self._mb_current_out)
-    #         if fl_id not in self._mb_current_out:
-    #             # We need to reset just this tributary
-    #             try :
-    #                 self._mb_current_out[fl_id] = self._mb_call(heights,
-    #                                                             year=year,
-    #                                                             fl_id=fl_id,
-    #                                                             fls=fls)
-    #             except:
-    #                 print("something in self._mb_call is wrong")
-    #                 print(traceback.format_exc())
-    #     else:
-    #         # We need to reset all
-    #         print("we need to reset all")
-    #         self._mb_current_date = date
-    #         self._mb_current_out = dict()
-    #         print("heights is :", heights,"year is :",year,"fl_id is :",fl_id,"fls is :",fls)
-    #         try:
-    #             self._mb_current_out[fl_id] = self._mb_call(heights,
-    #                                                         year=year,
-    #                                                         fl_id=fl_id,
-    #                                                         fls=fls)
-    #         except:
-    #             print("something in self._mb_call is wrong")
-    #             print(traceback.format_exc())
-
-
-    #     return self._mb_current_out[fl_id]
-
 
 
     def to_geometry_netcdf(self, path):
@@ -1152,31 +1004,16 @@ class FlowlineModel(object):
             # Add the last date to be sure we end on it - implementations
             # of `step()` and of the loop below should not run twice anyways
             ts = np.append(ts, y1)
-            print("the self.yr is :",self.yr)
-            print("the self.y0 is :",self.y0)
+
         else:
             ts = np.arange(int(self.yr), int(y1+1))
-        print("required model steps is :",self.required_model_steps)
-        print("the ts is :",ts)
         # Loop over the steps we want to meet
         for y in ts:
             try:
                 t = (y - self.y0) * SEC_IN_YEAR
                 # because of CFL, step() doesn't ensure that the end date is met
                 # lets run the steps until we reach our desired date
-                print("t in the run_until is :",t)
-                # print("self.t is :",self.t)
                 while self.t < t:               
-                    # # if self.required_model_steps == 'monthly':
-                    # #     self.step(SEC_IN_YEAR/12.0)
-                    # #     check_month = np.arange(0,12)/12.0
-                    # #     year_r = np.floor(t / SEC_IN_YEAR)
-                    # #     month_r = (t / SEC_IN_YEAR - year_r)
-                    # #     dist= np.abs(check_month - month_r)
-                    # #     mns=np.argmin(dist)
-                    # #     self.t = year_r * SEC_IN_YEAR + mns * SEC_IN_YEAR/12.0
-                    # # else:
-                    # #     print("do the step in the run_until")
                         self.step(t - self.t)
 
                 # Check for domain bounds
@@ -1187,11 +1024,9 @@ class FlowlineModel(object):
                 
                 # Check for NaNs
                 for fl in self.fls:
-                    #print("the fl.thick in run_until is",fl.thick)
                     if np.any(~np.isfinite(fl.thick)):
                         raise FloatingPointError('NaN in numerical solution, '
                                                 'at year: {}'.format(self.yr))
-                #print("================ run_until is successful ================")
             except:
                 print("something in run_until in year",y,"is wrong")
                 print(traceback.format_exc())
@@ -1291,42 +1126,26 @@ class FlowlineModel(object):
         # Do we have a spinup?
         do_fixed_spinup = fixed_geometry_spinup_yr is not None
         y0 = fixed_geometry_spinup_yr if do_fixed_spinup else self.yr
-        print("self.yr is :",self.yr)
         # Do we need to create a geometry or flowline diagnostics dataset?
         do_geom = geom_path is None or geom_path
         do_fl_diag = fl_diag_path is None or fl_diag_path
         
         # time
-        print("y0 is :",y0)
         yearly_time = np.arange(np.floor(y0), np.floor(y1)+1)
 
         if store_monthly_step is None:
             store_monthly_step = self.mb_step == 'monthly'
 
         if store_monthly_step:
-            print("store_monthly_step is True,monthly step")
             monthly_time = utils.monthly_timeseries(y0, y1)
         else:
-            print("store_monthly_step is False,annual step")
             monthly_time = np.arange(np.floor(y0), np.floor(y1)+1)
 
         sm = cfg.PARAMS['hydro_month_' + self.mb_model.hemisphere]
 
-        try:
-            print("y1 is :",y1)
-            print("monthly_time is:",monthly_time)
-        except:
-            print("somthing is wrong with the monthly_time, in run_until_and_store")
-
         yrs, months = utils.floatyear_to_date(monthly_time)
-        print("yrs is :",yrs)
-        print("months is :",months)
         hyrs, hmonths = utils.calendardate_to_hydrodate(yrs, months,
                                                        start_month=sm)
-        # cyrs, cmonths = utils.hydrodate_to_calendardate(yrs, months,
-        #                                                 start_month=sm)
-        # print("hyrs is :",hyrs)
-        # print("hmonths is :",hmonths)
         # init output
         if geom_path:
             self.to_geometry_netcdf(geom_path)
@@ -1340,7 +1159,6 @@ class FlowlineModel(object):
             hmonths = [hmonths]
             #cmonths = months
         nm = len(monthly_time)
-        print("nm (number of month) is :",nm)
         if do_geom or do_fl_diag:
             if store_monthly_step:
                 sects = [(np.zeros((nm, fl.nx)) * np.nan) for fl in self.fls]
@@ -1372,8 +1190,6 @@ class FlowlineModel(object):
 
         # Coordinates
         diag_ds.coords['time'] = ('time', monthly_time)
-        # diag_ds.coords['hydro_year'] = ('time', yrs)
-        # diag_ds.coords['hydro_month'] = ('time', months)
         diag_ds.coords['hydro_year'] = ('time', hyrs)
         diag_ds.coords['hydro_month'] = ('time', hmonths)
         diag_ds.coords['calendar_year'] = ('time', yrs)
@@ -1502,7 +1318,6 @@ class FlowlineModel(object):
             diag_ds['discharge_m3'].attrs['description'] = ('Ice flux through '
                                                             'terminal boundary')
             diag_ds['discharge_m3'].attrs['unit'] = 'm 3'
-        #print("ovars is :",ovars)
         for gi in range(10):
             vn = f'terminus_thick_{gi}'
             if vn in ovars:
@@ -1520,7 +1335,6 @@ class FlowlineModel(object):
 
         fl_diag_dss = None
         if do_fl_diag:
-            print("do_fl_diag: time invariant datasets:",do_fl_diag)
             # Time invariant datasets
             fl_diag_dss = [fl.to_diagnostics_dataset() for fl in self.fls]
 
@@ -1651,7 +1465,6 @@ class FlowlineModel(object):
                     thickness_previous_dhdt = {}
                     for fl_id, fl in enumerate(self.fls):
                         thickness_previous_dhdt[fl_id] = fl.thick
-            print("ovars_fl is :",ovars_fl)
         # First deal with spinup (we compute volume change only)
         if do_fixed_spinup:
             spinup_vol = monthly_time * 0
@@ -1673,33 +1486,20 @@ class FlowlineModel(object):
         # Run
         j = 0
         prev_state = None  # for the stopping criterion
-        print("start_run")
         for i, (yr, mo) in enumerate(zip(monthly_time, months)):
-            print("------------------------------------------j ------------------------------------------is :",j)
-            print("monthly_time (yr) is:",yr,"months is:",mo)
-            print("self year is:",self.yr)
             if yr > self.yr:
                 # Here we model run - otherwise (for spinup) we
                 # constantly store the same data
                 self.run_until(yr)
-                print("-----runned for the year -----:",yr)
             # Glacier geometry
             # We store the geometry at the beginning of each hydrological year/month
             if store_monthly_step:
                 # store for each monthly step
                 #TODO : check the monthly time i for the function floatyear_to_date, here is hard coded for 2000-2020 (monthly update), and 2000-2100 (annual update)
-                # if nm <242:
-                #     print("nm (number of month) is:",nm)
-                print("store the monthly diagnostic variables")
                 Store_Month= do_geom or do_fl_diag
-                # else:
-                #     print("store the annual diagnostic variables")
-                #     # store for each year, i.e. the first month of the year
-                #     Store_Month= (do_geom or do_fl_diag and mo == 1)
             else:
                 # store for each year, i.e. the first month of the year
                 Store_Month= (do_geom or do_fl_diag and mo == 1)
-#            if (do_geom or do_fl_diag) and mo == 1:
             if Store_Month:
                 for s, w, b, fl in zip(sects, widths, buckets, self.fls):
                     s[j, :] = fl.section
@@ -1707,13 +1507,11 @@ class FlowlineModel(object):
                     if self.is_tidewater:
                         try:
                             b[j] = fl.calving_bucket_m3
-                            print("the",j,"run and the calving_bucket_m3 is",b[j])
                         except AttributeError:
                             pass
 
                 # Flowline diagnostics
                 if do_fl_diag:
-                    print("do the flowline diagnostics")
                     for fl_id, (ds, fl) in enumerate(zip(fl_diag_dss, self.fls)):
                         # area and volume are already being taken care of above
                         if 'thickness' in ovars_fl:
@@ -1744,29 +1542,10 @@ class FlowlineModel(object):
                         if 'climatic_mb' in ovars_fl and (yr > self.y0):
                             # yr - 1 to use the mb which lead to the current
                             # state, also using previous surface height
-                            print("yr is :",yr)
-                            print("self.yr is :",self.yr)
-                            # if store_monthly_step:
-                            #     print("the monthly time before is :",monthly_time[i-1])
-                            #     #TODO : check the monthly time i-1 for the function floatyear_to_date, here is hard coded for 2000-2020 (monthly update), and 2000-2100 (annual update)
-                            #     # if i < 240:
-                            #     #     val = self.get_mb(surface_h_previous[fl_id],
-                            #     #                 (monthly_time[i-1]),
-                            #     #                 fl_id=fl_id,store_monthly_step= True) 
-                            #     # else :
-                            #     val = self.get_mb(surface_h_previous[fl_id],
-                            #                         self.yr - 1/12,
-                            #                         fl_id=fl_id,store_monthly_step= True)
-                            #     #0.0833333333333
-                            # else:
                             if store_monthly_step:
-                                # val = self.get_mb(surface_h_previous[fl_id],
-                                #             self.yr - 0.0833333333333,
-                                #             fl_id=fl_id,store_monthly_step= True)
                                 #TODO : check the monthly time i-1,fls should be the fls in the previous months
                                 float_yr = monthly_time[i-1]
                                 y, m = utils.floatyear_to_date(float_yr)
-                                print(f"[DEBUG] float_yr={float_yr:.15f} → (y={y}, m={m})")
                                 val = self.get_mb(surface_h_previous[fl_id],
                                             year=monthly_time[i-1],fl_id=fl_id,fls=self.fls,store_monthly_step= True)     
                             else:
@@ -1777,7 +1556,6 @@ class FlowlineModel(object):
                             # isclose for avoiding numeric represention artefacts
                             dhdt_zero = np.isclose(ds['dhdt_myr'].data[j, :],
                                                    0.)
-                            #print("dhdt_zero is :",dhdt_zero)
                             ds['climatic_mb_myr'].data[j, :] = np.where(
                                 dhdt_zero,
                                 0.,
@@ -1803,12 +1581,10 @@ class FlowlineModel(object):
                             )
                             fac = np.where(has_become_ice_free, 0.1, 1.)
                             ds['flux_divergence_myr'].data[j, :] = val * fac
-                    print("the flowline diagnostic is successful")
 
                 # j is the yearly index in case we have monthly output
                 # we have to count it ourselves
                 j += 1
-            print("Glacier geometry done")
             # Diagnostics
             if 'volume' in ovars:
                 diag_ds['volume_m3'].data[i] = self.volume_m3
@@ -1903,7 +1679,6 @@ class FlowlineModel(object):
                     ds = ds.dropna('time', subset=['ts_section'])
 
                 geom_ds.append(ds)
-            print("geom_ds is :",geom_ds)
 
         # Add the spinup volume to the diag
         if do_fixed_spinup:
@@ -1920,7 +1695,6 @@ class FlowlineModel(object):
         # write output?
         if do_fl_diag:
             try: 
-                print("write output")
                 # Unit conversions for these
                 for i, ds in enumerate(fl_diag_dss):
                     dx = ds.attrs['map_dx'] * ds.attrs['dx']
@@ -1934,7 +1708,6 @@ class FlowlineModel(object):
 
                 # Write out?
                 if fl_diag_path not in [True, None]:
-                    print("fl_diag_path in run_until_and_store is :",fl_diag_path)
                     encode = {}
                     for v in fl_diag_dss[0]:
                         encode[v] = {'zlib': True, 'complevel': 5}
@@ -2040,336 +1813,6 @@ def k_calving_law(model, flowline, last_above_wl):
     q_calving = k * d * h * flowline.widths_m[last_above_wl]
     return q_calving
 
-
-def fa_sermeq_speed_law(model,last_above_wl, v_scaling=1, verbose=False,
-                     tau0=1.5, variable_yield=None, mu=0.01,
-                     trim_profile=1):
-    """
-    This function is used to calculate frontal ablation given ice speed forcing,
-    for lake-terminating and tidewater glaciers
-
-    @author: Ruitang Yang & Lizz Ultee
-
-    Authors: Ruitang Yang & Lizz Ultee
-    Parameters
-    ----------
-
-    model : oggm.core.flowline.FlowlineModel
-        the model instance calling the function
-    flowline : oggm.core.flowline.Flowline
-        the instance of the flowline object on which the calving law is called
-    fl_id : float, optional
-        the index of the flowline in the fls array (might be ignored by some MB models)
-    last_above_wl : int
-        the index of the last pixel above water (in case you need to know
-        where it is).
-    v_scaling: float
-        velocity scaling factor, >0, default is 1
-    Terminus_mb : array
-        Mass balance along the flowline or nearest the terminus [m/a]. Default None,the unit meter of ice per year 
-    verbose: Boolean, optional
-        Whether to print component parts for inspection.  Default False.
-
-    tau0: float, optional
-        This glacier's yield strength [Pa]. Default is 150 kPa.
-    yield_type: str, optional
-        'constant' or 'variable' (Mohr-Coulomb) yielding. Default is constant.
-    mu: float, optional
-        Mohr-Coulomb cohesion, a coefficient between 0 and 1. Default is 0.01.
-        Only used if we have variable yield
-
-    trim_profile: int, optional
-        How many grid cells at the end of the profile to ignore.  Default is 1.
-        If the initial profile is set by k-calving (as in testing) there can be a
-        weird cliff shape with very thin final grid point and large velocity gradient
-
-    Returns
-    -------
-    fa_viscoplastic: float
-        Frontal ablation rate [m/a] based on viscoplastic assumptions
-    SQFA: dict
-        Frontal ablation rate [m/a] based on viscoplastic assumptions
-        serface elevation at the terminus [m a.s.l.] based on OGGM ## TODO CHANGE IT BY PyGEM Surface mass balance result
-        bed elevation at the terminus [m a.s.l.]
-        Terminus Thickness [m]
-        Yield terminus thickness [m]
-        Velocity at the terminus [m/a]
-        Surface mass balance at the terminus [m/a] m ice per year
-        Length change at the terminus [m/a] based on viscoplastic assumptions
-        TODO: output the length change in case we
-         have the length change results from observations in-situ or remote sensing (Thomas Schellenberger has the machine learning products)
-        Frontal ablation rate [m/a] based on viscoplastic assumptions
-
-    Explanation of sign
-    -------
-    fa_viscoplastic: negative, mass loss
-    dLdt: length change rate, positive if advance; negative if retreat
-    terminus mass balance: negative if mass loss; positive if mass gain
-    """
-    # ---------------------------------------------------------------------------
-    # class NegativeValueError(Exception):
-    #     pass
-    # ---------------------------------------------------------------------------
-    ## Global constants
-    G = 9.8  # acceleration due to gravity in m/s^2
-    RHO_ICE = 900.0  # ice density kg/m^3
-    RHO_SEA = 1020.0  # seawater density kg/m^3
-    water_level = model.water_level
-    print("water_level in the fa_sermeq_speed_law at the start is (m) :",water_level)
-    if variable_yield is not None and not variable_yield:
-        variable_yield = None
-    print("variable_yield is ", variable_yield)
-    
-
-    # ---------------------------------------------------------------------------
-    # the yield strength
-    def tau_y(tau0=1.3, variable_yield=None, bed_elev=None, thick=None, mu=0.01):
-        """
-        Functional form of yield strength.
-        Can do constant or Mohr-Coulomb yield strength.  Ideally, the glacier's yield type
-        ('constant' or 'variable') would be saved in a model instance.
-
-        Parameters
-        ----------
-        tau0: float, optional
-            Initial guess for yield strength [Pa]. Default is 150 kPa.
-        yield_type: str, optional
-            'constant' or 'variable' (Mohr-Coulomb) yielding. Default is constant.
-        bed_elev: float, optional
-            Bed elevation, dimensional [m]. The default is None.
-        thick: float, optional
-            Ice thickness, dimensional [m]. The default is None.
-        mu: float, optional
-            Mohr-Coulomb cohesion, a coefficient between 0 and 1. Default is 0.01.
-
-        Returns
-        -------
-        tau_y: float
-            The yield strength for these conditions.
-        """
-        tau1=tau0*1e5
-        if variable_yield is not None:
-            try:
-                # if bed_elev < 0:
-                #     D = -1 * bed_elev  # Water depth D the nondim bed topography value when Z<0
-                # else:
-                #     D = 0
-                D = utils.clip_min(0,water_level - bed_elev)
-            except:
-                print('You must set a bed elevation and ice thickness to use variable yield strength. Using constant yeild instead')
-                ty = tau1
-            N = RHO_ICE * G * thick - RHO_SEA * G * D # Normal stress at bed
-            #convert to Pa
-            
-            ty = tau1 + mu * N
-        else:  # assume constant if not set
-            ty = tau1
-        return ty
-
-
-    # ---------------------------------------------------------------------------
-    # calculate the yield ice thickness
-
-    def balance_thickness(yield_strength, bed_elev):
-        """
-        Ice thickness such that the stress matches the yield strength.
-
-        Parameters
-        ----------
-        yield_strength: float
-            The yield strength near the terminus.
-            If yield type is constant, this will of course be the same everywhere.  If yield type is
-            variable (Mohr-Coulomb), the yield strength at the terminus could differ from elsewhere.
-        bed_elev: float
-            Elevation of glacier bed at the terminus
-
-        Returns
-        -------
-        Hy: float
-            The ice thickness for stress balance at the terminus. [units]
-        """
-        # if bed_elev < 0:
-        #     D = -1 * bed_elev
-        # else:
-        #     D = 0
-        D = utils.clip_min(0,water_level - bed_elev)
-        return (2 * yield_strength / (RHO_ICE * G)) + np.sqrt(
-            (RHO_SEA * (D ** 2) / RHO_ICE) + ((2 * yield_strength / (RHO_ICE * G)) ** 2))
-        # TODO: Check on exponent on last term.  In Ultee & Bassis 2016, this is squared, but in Ultee & Bassis 2020 supplement, it isn't.
-
-    # ---------------------------------------------------------------------------
-    # calculate frontal ablation based on the ice thickness, speed at the terminus
-    fls=model.fls
-    flowline=fls[-1]
-    surface_m = flowline.surface_h
-    bed_m = flowline.bed_h
-    width_m = flowline.widths_m
-    
-    # u_stag[-1] is the main flowline
-    velocity_m = model.u_stag[-1]*cfg.SEC_IN_YEAR
-    print('velocity_m is', velocity_m)
-    x_m = flowline.dis_on_line*flowline.map_dx
-    print('x_m in fa_sermq_law is :',x_m)
-
-    # gdir : py:class:`oggm.GlacierDirectory`
-    #     the glacier directory to process
-    # fls = model.gdir.read_pickle('model_flowlines')
-    # mbmod_fl = massbalance.MultipleFlowlineMassBalance(model.gdir, fls=fls, use_inversion_flowlines=True,
-    #                                                    mb_model_class=MonthlyTIModel)
-    #mb_annual=model.mb_model.get_annual_mb(heights=surface_m, fl_id=-1, year=model.yr, fls=model.fls)
-    #  should call the monthly function
-    mb_annual=model.mb_model.get_monthly_mb(heights=surface_m, fl_id=-1, year=model.yr, fls=model.fls)
-
-    print("mb_annual is (m ice per second):",mb_annual,"in year",model.yr,"Actually is monthly output")
-    Terminus_mb = mb_annual*cfg.SEC_IN_YEAR
-    print("Terminus mass balance is (m per year):",Terminus_mb)
-    # slice up to index+1 to include the last nonzero value
-    # profile: NDarray
-    #     The current profile (x, surface, bed,width) as calculated by the base model
-    #     Unlike core SERMeQ, these should be DIMENSIONAL [m].
-    profile=(x_m[:last_above_wl+1],
-                 surface_m[:last_above_wl+1],
-                 bed_m[:last_above_wl+1],width_m[:last_above_wl+1])
-    print("bed_h of the flowline using to do calving is :", bed_m[:last_above_wl+1])
-    # model_velocity: array
-    #     Velocity along the flowline [m/a] as calculated by the base model
-    #     Should have values for the points nearest the terminus...otherwise
-    #     doesn't matter if this is the same shape as the profile array.
-    #     TODO: Check with the remote sensing products, or at least to validate the model products
-    model_velocity=velocity_m[:last_above_wl+1]
-    # remove lowest cells if needed
-    last_index = -1 * (trim_profile + 1)
-    ## TODO: Check the flowline model, the decrease the distance between two adjacent points along the flowline, and then calculate the averaged gradient for dhdx,dhydx,dudx
-    ##
-    if isinstance(Terminus_mb, (int, float)):
-        terminus_mb = Terminus_mb
-    elif isinstance(Terminus_mb, (list, np.ndarray)):
-        terminus_mb = Terminus_mb[last_index]
-    else:
-        print("please input the correct mass balance datatype")
-    #
-    if isinstance(model_velocity, (int, float)):
-        model_velocity = v_scaling * model_velocity
-    elif isinstance(model_velocity, list):
-        model_velocity = v_scaling * np.array(model_velocity)
-    elif isinstance(model_velocity, np.ndarray):
-        model_velocity = v_scaling * model_velocity
-    else:
-        print("please input the correct velocity datatype")
-    ## Ice thickness and yield thickness nearest the terminuss
-    se_terminus = profile[1][last_index]
-    bed_terminus = profile[2][last_index]
-    print("the surface at the terminus is (m a.s.l.) :",se_terminus)
-    print("the bed at the terminus is (m a.s.l.) :",bed_terminus)
-    h_terminus = se_terminus - bed_terminus
-    width_terminus = profile[3][last_index]
-    tau_y_terminus = tau_y(tau0=tau0, bed_elev=bed_terminus, thick=h_terminus, variable_yield=variable_yield)
-    print('tau_y_terminus in fa_sermeq_speed_law is:',tau_y_terminus)  
-    Hy_terminus = balance_thickness(yield_strength=tau_y_terminus, bed_elev=bed_terminus)
-    print('Hy_terminus in fa_sermeq_speed_law is:',Hy_terminus)  
-    if isinstance(model_velocity, (int, float)):
-        U_terminus = model_velocity
-        U_adj = model_velocity
-    else:
-        U_terminus = model_velocity[last_index]  ## velocity, assuming last point is terminus
-        U_adj = model_velocity[last_index - 1]
-    print(f"the U terminus and adj are (m a-1): {U_terminus} and {U_adj}")
-
-    ## Ice thickness and yield thickness at adjacent point
-    se_adj = profile[1][last_index - 1]
-    bed_adj = profile[2][last_index - 1]
-    print("the surface at the grid backbefore the terminus (adj) (m a.s.l.) is :" ,se_adj)
-    print("the bed at the grid backbefore the terminus (adj) (m a.s.l.) is :" ,bed_adj)
-    H_adj = se_adj - bed_adj
-    tau_y_adj = tau_y(tau0=tau0, bed_elev=bed_adj, thick=H_adj, variable_yield=variable_yield)
-    print('tau_y_adj in fa_sermeq_speed_law is:',tau_y_adj)
-    Hy_adj = balance_thickness(yield_strength=tau_y_adj, bed_elev=bed_adj)
-    print('Hy_adj in fa_sermeq_speed_law is:',Hy_adj)
-    # Gradients
-    dx_term = profile[0][last_index] - profile[0][last_index - 1]  ## check grid spacing close to terminus
-    if dx_term <= 0.0 :
-        raise RuntimeError('DX_TERM IS LESS THEN ZERO')
-    dHdx = (h_terminus - H_adj) / dx_term
-    # if dHdx >= 0.0 :
-    #     raise RuntimeError('DHDX_TERM IS LESS THEN ZERO')
-    dHydx = (Hy_terminus - Hy_adj) / dx_term
-    # if dHydx <= 0.0 :
-    #     raise RuntimeError('DHYDX_TERM IS LESS THEN ZERO')
-    if np.isnan(U_terminus) or np.isnan(U_adj):
-        dUdx = np.nan  ## velocity gradient
-        ## Group the terms
-        dLdt_numerator = np.nan
-        dLdt_denominator = np.nan  ## TODO: compute dHydx
-        dLdt_viscoplastic = np.nan
-        # fa_viscoplastic = dLdt_viscoplastic -U_terminus  ## frontal ablation rate
-        fa_viscoplastic = np.nan  ## frontal ablation rate
-    else:
-        # Gradients
-        # dx_term = profile[0][last_index] - profile[0][last_index - 1]  ## check grid spacing close to terminus 
-        # dHdx = (h_terminus - H_adj) / dx_term
-        # dHydx = (Hy_terminus - Hy_adj) / dx_term
-        dUdx = (U_terminus - U_adj) / dx_term  ## velocity gradient
-        ## Group the terms
-        dLdt_numerator = terminus_mb - (h_terminus * dUdx) - (U_terminus * dHdx)
-        dLdt_denominator = dHydx - dHdx  ## TODO: compute dHydx
-        dLdt_viscoplastic = dLdt_numerator / dLdt_denominator
-        # if dLdt_denominator < 0:
-        #     raise RuntimeError('DHYDX-DHDX IS LESS THEN ZERO')
-        # elif dLdt_denominator == 0:
-        #     raise RuntimeError('DHYDX-DHDX IS ZERO')
-        print('dLdt_numerator',dLdt_numerator)
-        print('dLdt_denominator',dLdt_denominator)
-        # fa_viscoplastic = dLdt_viscoplastic -U_terminus  ## frontal ablation rate
-        
-        # try:
-        U_calving = U_terminus - dLdt_viscoplastic  ## frontal ablation rate
-        fa_viscoplastic=U_calving
-        # if U_calving<0:
-        #     print("The glacier is advancing, and the advancing rate is larger than ice flow speed at the terminus, please check ")
-        #     if U_calving>0 or U_calving==0:
-        #         fa_viscoplastic=U_calving
-        #     else:
-        #         fa_viscoplastic=U_calving
-        #         # fa_viscoplastic=np.nan
-        #         raise NegativeValueError("Something is wrong, right now the calving in negative, which should be positive or zero")
-        # except NegativeValueError as e:
-        #     print ("The glacier is advancing, and the advancing rate is larger than ice flow speed at the terminus, please check ")
-            
-
-
-    SQFA = {'se_terminus': se_terminus,
-            'bed_terminus': bed_terminus,
-            'Thickness_termi': h_terminus,
-            'Width_termi':  width_terminus,
-            'Hy_thickness': Hy_terminus,
-            'Velocity_termi': U_terminus,
-            'Terminus_mb': terminus_mb,
-            'dLdt': dLdt_viscoplastic,
-            'Sermeq_fa': fa_viscoplastic}
-    if verbose:
-        print('For inspection on debugging - all should be DIMENSIONAL (m/a):')
-        #         print('profile_length={}'.format(profile_length))
-        print('last_index={}'.format(last_index))
-        print('se_terminus={}'.format(se_terminus))
-        print('bed_terminus={}'.format(bed_terminus))
-        print('se_adj={}'.format(se_adj))
-        print('bed_adj={}'.format(bed_adj))
-        print('Thicknesses: Hterm {}, Hadj {}'.format(h_terminus, H_adj))
-        print('Hy_terminus={}'.format(Hy_terminus))
-        print('Hy_adj={}'.format(Hy_adj))
-        print('U_terminus={}'.format(U_terminus))
-        print('U_adj={}'.format(U_adj))
-        print('dUdx={}'.format(dUdx))
-        print('dx_term={}'.format(dx_term))
-        print('Checking dLdt: terminus_mb = {}. \n H dUdx = {}. \n U dHdx = {}.'.format(terminus_mb, dUdx * h_terminus,
-                                                                                        U_terminus * dHdx))
-        print('Denom: dHydx = {} \n dHdx = {}'.format(dHydx, dHdx))
-        print('Viscoplastic dLdt={}'.format(dLdt_viscoplastic))
-        print('Terminus surface mass balance ma= {}'.format(terminus_mb))
-        print('Sermeq frontal ablation ma={}'.format(fa_viscoplastic))
-    else:
-        pass
-    return SQFA
 
 
 class FluxBasedModel(FlowlineModel):
@@ -2488,7 +1931,6 @@ class FluxBasedModel(FlowlineModel):
                                              **kwargs)
 
         self.fixed_dt = fixed_dt
-        print("the fixed dt is:",fixed_dt)
         if min_dt is None:
             min_dt = cfg.PARAMS['cfl_min_dt']
         if cfl_number is None:
@@ -2513,8 +1955,6 @@ class FluxBasedModel(FlowlineModel):
             calving_k = cfg.PARAMS['calving_k']
         if do_kcalving:
             self.calving_k = calving_k / cfg.SEC_IN_YEAR
-        #self.calving_k = calving_kS
-        #self.calving_k = calving_k / cfg.SEC_IN_YEAR
         #TODO put conditions for different calving laws
         # if calving_use_limiter is None:
         #     calving_use_limiter = cfg.PARAMS['calving_use_limiter']
@@ -2529,7 +1969,6 @@ class FluxBasedModel(FlowlineModel):
                                       'implemented yet')
         self.calving_limiter_frac = calving_limiter_frac
         self.ovars = cfg.PARAMS['store_diagnostic_variables']
-        print("initialized fluxmodel")
         # Stretching distance for frontal dynamics
         if self.do_calving:
             self.stretch_dist_p = cfg.PARAMS.get('stretch_dist', 8e3)
@@ -2537,11 +1976,9 @@ class FluxBasedModel(FlowlineModel):
         self.flux_gate = utils.tolist(flux_gate, length=len(self.fls))
         self.flux_gate_m3_since_y0 = 0.
         if flux_gate_thickness is not None:
-            print("flux_gate_thickness now is not None")
             # Compute the theoretical ice flux from the slope at the top
             flux_gate_thickness = utils.tolist(flux_gate_thickness,
                                                length=len(self.fls))
-            print("flux_gate_thickness now is:",flux_gate_thickness)
             self.flux_gate = []
             for fl, fgt in zip(self.fls, flux_gate_thickness):
                 # We set the thickness to the desired value so that
@@ -2647,7 +2084,6 @@ class FluxBasedModel(FlowlineModel):
             #depth = fl.water_depth
             calving_flux = 0.
             depth = utils.clip_min(0,self.water_level - fl.bed_h)
-            print("dt in the step(self,dt) is:",dt,"fl_id:",fl_id)
 
             # If it is a tributary, we use the branch it flows into to compute
             # the slope of the last grid point
@@ -2677,19 +2113,13 @@ class FluxBasedModel(FlowlineModel):
             slope_stag[0] = 0
             slope_stag[1:-1] = (surface_h[0:-1] - surface_h[1:]) / dx
             slope_stag[-1] = slope_stag[-2]
-            print("surface_h is :",surface_h)
-            print("dx is :",dx)
-            print("the slope_stag is 01:",slope_stag)
 
             # Staggered thick
-            print("thick is :",thick)
             thick_stag[1:-1] = (thick[0:-1] + thick[1:]) / 2.
             thick_stag[[0, -1]] = thick[[0, -1]]
             # for the pixel after last ice, the thick should still be zero, not the (thick+0)/2
-            print("the type of thick is :",type(thick))
             thick_ori_extend = np.append(thick,0)
             thick_stag[thick_ori_extend == 0] = 0 
-            print('thick_stag is',thick_stag)
             # # Staggeered depth
             water_depth_stag[1:-1] = (depth[0:-1] + depth[1:]) / 2.
             water_depth_stag[[0, -1]] = depth[[0, -1]]   
@@ -2698,7 +2128,6 @@ class FluxBasedModel(FlowlineModel):
             section_stag[[0, -1]] = section[[0, -1]]        
 
             # Resetting variables (necessary?)
-            print("************** start to reset variables **************")
             h = []
             d = []
             no_ice = []
@@ -2727,22 +2156,15 @@ class FluxBasedModel(FlowlineModel):
                     sf = np.append(sf, 1.)
                 sf_stag[1:-1] = (sf[0:-1] + sf[1:]) / 2.
                 sf_stag[[0, -1]] = sf[[0, -1]]
-            print("self.sf_func in Step is:",self.sf_func)
             # Determine where ice bodies are; if there is no ice below
             # water_level, we fall back to the standard ice dynamics
             ice_below_wl = np.any((fl.bed_h < self.water_level) &
                                   (fl.thick > 0))
-            print("ice below water level is :",ice_below_wl)
             # We compute more complex dynamics when we have ice grounded below water
             if fl.has_ice() and ice_below_wl and self.do_calving:
                 ice_above_wl = ((fl.surface_h > self.water_level) &
                                 (fl.bed_h < self.water_level) &
                                 (fl.thick >= (self.rho_o / self.rho) * depth))
-                print("ice above water level is :",ice_above_wl)
-                print("self.water_level is :",self.water_level)
-                print("self.depth is :", depth)
-                print("fl.bed_h is :",fl.bed_h)
-                print("the thick threshold is :",(self.rho_o / self.rho) * depth)
                 if np.any(ice_above_wl):
                     last_above_wl = np.where(ice_above_wl)[0][-1]
                 else:
@@ -2755,7 +2177,6 @@ class FluxBasedModel(FlowlineModel):
                 last_ice = np.where((fl.thick[no_ice-1] > 0) & \
                                 (fl.surface_h[no_ice-1] > self.water_level))[0]
                 last_ice = no_ice[last_ice]-1
-                print("last ice is :",last_ice)
                 if last_ice.size == 1:
                     first_ice = np.nonzero(fl.thick[0:last_above_wl+1] > 0)[0][0]
                 elif last_ice.size > 1 and (last_ice[-2]+1 < last_above_wl+1):
@@ -2767,7 +2188,6 @@ class FluxBasedModel(FlowlineModel):
                                            > 0)[0][-1]
                 else:
                     first_ice = 0
-                print("first_ice is :",first_ice)
                 # Determine water depth at the front
                 h = fl.thick[last_above_wl]
                 d = h - (fl.surface_h[last_above_wl] - self.water_level)
@@ -2777,7 +2197,6 @@ class FluxBasedModel(FlowlineModel):
                 z_a_b = utils.clip_min(0.01,thick_stag - water_depth_stag *
                                          (self.rho_o / self.rho))
                 z_a_b[thick_stag == 0] = 1  # Stress is zero there, so the sliding velocity is zero
-                print("height above buoancy is :",z_a_b)
                 # Compute net hydrostatic force at the front. One could think 
                 # about incorporating ice mélange / sea ice here as an 
                 # additional backstress term. (And also in the frontal ablation
@@ -2816,9 +2235,6 @@ class FluxBasedModel(FlowlineModel):
                                                                     [stretch_first-1:\
                                                                     stretch_last-1])
                 stress = self.rho*G*slope_stag*thick_stag
-                print("the slope stag is 02 :",slope_stag)
-                print("the stress is :",stress)
-                print("the thick_stag is :",thick_stag)
 
                 # Add "stretching stress" to basal shear/driving stress
                 if fl.bed_h[last_above_wl+1] < self.water_level:
@@ -2829,50 +2245,29 @@ class FluxBasedModel(FlowlineModel):
                                                           stretch_factor *
                                                           (pull_last /
                                                            stretch_dist))
-                print("the stress updated as: ",stress)
-                #print('sf_stag is :',sf_stag)
                 # Compute velocities
                 #u_drag[:] = thick_stag * stress**N * self._fd * sf_stag**N
                 u_drag[:] = thick_stag * stress**N * self._fd 
-                print("u_drag is :",u_drag)
                 # Sliding is increased where there is water
-                print("z_a_b is :",z_a_b)
-                print("fs is :",self.fs)
                 u_slide[:] = (stress ** N / z_a_b) * self.fs
-                #u_slide = np.where(z_a_b < 0.01, 4*u_drag, u_slide)
-                print("u_slide is", u_slide)
-                # try:
-                #     #u_slide[:] = (stress**N / z_a_b) * self.fs * sf_stag**N # Not sure if sf_stag is correct here
-                #     #u_slide[:] = (np.where(z_a_b == 0,0,stress**N / z_a_b)) * self.fs * sf_stag**N
-                #     u_slide[:] = np.divide(stress**N, z_a_b, where=(z_a_b != 0), out=np.zeros_like(stress)) * self.fs * sf_stag**N
-                # except:
-                #     print("something is wrong when calculating u_slide")
                 
                 # Force velocity beyond grounding line to be the same as the one
                 # across the grounding line. Entering uncharted (floating/shelf) 
                 # territory here...
                 if fl.bed_h[last_above_wl+1] < self.water_level:
-                    # u_slide[last_above_wl+2:] = u_slide[last_above_wl+1]
-                    # u_drag[last_above_wl+2:] = u_drag[last_above_wl+1]
-                # if calving_is_happening:
                     u_drag[last_above_wl + 2:] = 0
                     u_slide[last_above_wl + 2:] = 0
                 u_stag[:] = u_drag + u_slide
-                print("u_stag is :",u_stag)
                 # Staggered section
                 # For the flux out of the last grid cell, the staggered section
                 # is set to the cross section of the calving front.
                 section_stag[last_above_wl+1] = section[last_above_wl]
-                print("section_stag is :",section_stag)
                 #if calving_is_happening:
                 if fl.bed_h[last_above_wl+1] < self.water_level:
                     # We calculate the "baseline" calving flux and discharge here to
                     # be consistent with the dynamics above
                     k = self.calving_k
-                    print("calving_k before the fa_sermeq_speed_law is :",k)
                     if self.calving_law == fa_sermeq_speed_law:
-                        print("before calving")
-                        print("model.yr is :",self.yr)
                         try:
                             # Transit the unit of tau0 to Pa, based on the equation self.calving_k= calving_k/cfg.SEC_IN_YEAR
                             # tau0 = self.calving_k * cfg.SEC_IN_YEAR
@@ -2886,32 +2281,22 @@ class FluxBasedModel(FlowlineModel):
                     else:
                         calving_flux = self.calving_law(self, fl, last_above_wl)
                     self.calving_flux = utils.clip_min(0, calving_flux)
-                    print("after calving")
-                    print("calving_flux is (m3 s-1):",calving_flux)
-                    # self.calving_flux = utils.clip_min(0, k * d * h * 
-                    #                                    fl.widths_m[last_above_wl])
                     self.discharge = u_stag[last_above_wl+1] * section[last_above_wl]
                     self.last_before = last_above_wl
 
             # Usual ice dynamics
             else:
                 rhogh = (self.rho*G*slope_stag)**N
-                # u_drag[:] = (thick_stag**(N+1)) * self._fd * rhogh * \
-                #               sf_stag**N
                 u_drag[:] = (thick_stag**(N+1)) * self._fd * rhogh 
                 # Temporary check for above
                 stress = self.rho * G * slope_stag * thick_stag
                 vel = thick_stag * stress ** N * self._fd
                 assert np.allclose(u_drag, vel)
-                # u_slide[:] = (thick_stag**(N-1)) * self.fs * rhogh * \
-                #               sf_stag**N # Not sure if sf is correct here   
                 u_slide[:] = (thick_stag**(N-1)) * self.fs * rhogh
                 z_a_b = thick_stag
                 z_a_b[thick_stag == 0] = 1
                 vel = (stress ** N / z_a_b) * self.fs
                 assert np.allclose(u_slide, vel)                                
-                # u_stag[:] = (thick_stag**(N+1)) * self._fd * rhogh * sf_stag**N + \
-                #         (thick_stag**(N-1)) * self.fs * rhogh
                 u_stag[:] = u_drag + u_slide
 
                 # # Staggered section
@@ -2924,18 +2309,13 @@ class FluxBasedModel(FlowlineModel):
             # Add boundary condition
             if flux_gate is not None:
                 flux_stag[0] = flux_gate(self.yr)
-            print("flux_gate is:",flux_gate)
-            print("flux_stag is:",flux_stag)
             # CFL condition
             if not self.fixed_dt:
                 maxu = np.max(np.abs(u_stag))
-                print("maxu is (m s-1) :",maxu)
                 if maxu > cfg.FLOAT_EPS:
                     cfl_dt = self.cfl_number * dx / maxu
                 else:
                     cfl_dt = dt
-                print("cfl_dt is:",cfl_dt)
-                print("dt is:",dt)
                 # Update dt only if necessary
                 if cfl_dt < dt:
                     dt = cfl_dt
@@ -2958,9 +2338,6 @@ class FluxBasedModel(FlowlineModel):
             # (like PyGEM) can do wo with a clean glacier state
             temp_mb=self.get_mb(fl.surface_h, self.yr,fl_id=fl_id, fls=self.fls)
             mbs.append(temp_mb)
-        print("******compute MB******")
-        print("mbs is:",mbs)
-
 
         # Time step
         if self.fixed_dt:
@@ -2972,7 +2349,6 @@ class FluxBasedModel(FlowlineModel):
             self.discharge_m3_since_y0 += self.discharge * dt
         
         # A second loop for the mass exchange
-        print("****************do the second loop for the mass exchange in Step****************")
         for fl_id, fl in enumerate(self.fls):
 
             flx_stag = self.flux_stag[fl_id]
@@ -3115,21 +2491,6 @@ class FluxBasedModel(FlowlineModel):
                 # OK, we're really calving
                 # calving law
                 section = fl.section
-                # if self.calving_law == fa_sermeq_speed_law:
-                #     print("before calving")
-                #     try:
-                #         # Transit the unit of tau0 to Pa, based on the equation self.calving_k= calving_k/cfg.SEC_IN_YEAR
-                #         # tau0 = self.calving_k * cfg.SEC_IN_YEAR
-                #         s_fa = self.calving_law(self, last_above_wl,v_scaling = 1, verbose = False,tau0 = (self.calving_k)*cfg.SEC_IN_YEAR,
-                #                             variable_yield=self.variable_yield, mu = 0.01,trim_profile = 0)
-                #         q_calving = s_fa ['Sermeq_fa']*s_fa['Thickness_termi']*s_fa['Width_termi']/cfg.SEC_IN_YEAR
-                #         print("after calving")
-                #         print("q_calving is (m3 s-1):",q_calving)
-
-                #     except RuntimeError:
-                #         traceback.print_exception(*sys.exc_info())
-                # else:
-                #     q_calving = self.calving_law(self, fl, last_above_wl)
 
                 # Add to the bucket and the diagnostics
                 q_calving = self.calving_flux
@@ -3150,15 +2511,8 @@ class FluxBasedModel(FlowlineModel):
                 to_remove = np.sum(section[below_wl]) * fl.dx_meter
                 if 0 < to_remove < fl.calving_bucket_m3:
                     # This is easy, we remove everything
-                    #section[below_sl] = 0
                     section[below_wl] = 0
                     fl.calving_bucket_m3 -= to_remove
-                # elif to_remove > 0:
-                #     # We can only remove part of if
-                #     section[below_sl] = 0
-                #     section[last_above_wl+1] = ((to_remove - fl.calving_bucket_m3)
-                #                                 / fl.dx_meter)
-                #     fl.calving_bucket_m3 = 0
                 elif to_remove > 0 and last_above_wl >= self.last_before:
                     # We can only remove part of if
                     section[below_wl] = 0
@@ -3177,8 +2531,6 @@ class FluxBasedModel(FlowlineModel):
 
                 # The rest of the bucket might calve an entire grid point (or more?)
                 vol_last = section[last_above_wl] * fl.dx_meter
-                print("the volumn of the last pixel is",vol_last)
-                print("last_above_wl is",last_above_wl)
                 #while fl.calving_bucket_m3 > vol_last:
                 while fl.calving_bucket_m3 >= vol_last and \
                       fl.bed_h[last_above_wl] < self.water_level:
@@ -3187,11 +2539,7 @@ class FluxBasedModel(FlowlineModel):
                     
                     # OK check if we need to continue (unlikely)
                     last_above_wl -= 1
-                    print('vol_last is',vol_last)
-                    print('fl.calving_bucket_m3 is',fl.calving_bucket_m3)
-                    print("the updated last_above_wl is ", last_above_wl)
                     vol_last = section[last_above_wl] * fl.dx_meter
-                    print("the updated volumn of the last pixel is",vol_last)
                 # We update the glacier with our changes
                 fl.section = section
             
@@ -3203,7 +2551,6 @@ class FluxBasedModel(FlowlineModel):
                 while ((last_above_wl+1 < len(fl.bed_h)) and
                       (fl.surface_h[last_above_wl+1] > fl.surface_h[last_above_wl])
                        and fl.section[last_above_wl+1] > 0):
-                    print("The glacier is advancing in step ",dt)
                     diff_sec = 0    
                     old_thick = fl.thick[last_above_wl+1]
                     old_sec = fl.section[last_above_wl+1]
@@ -3230,6 +2577,7 @@ class FluxBasedModel(FlowlineModel):
         # Next step
         self.t += dt
         return dt
+
 
     def get_diagnostics(self, fl_id=-1):
         """Obtain model diagnostics in a pandas DataFrame.
@@ -4580,7 +3928,6 @@ def flowline_model_run(gdir, output_filesuffix=None, mb_model=None,
         fl_diag_path = gdir.get_filepath('fl_diagnostics',
                                          filesuffix=output_filesuffix,
                                          delete=True)
-        print("fl_diag_path is (flowline_model_run):",fl_diag_path)
     else:
         fl_diag_path = False
 
