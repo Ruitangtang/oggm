@@ -6,8 +6,8 @@ SERMeQ_RT — Frontal Ablation Extension (SERMeQ) for OGGM
    :target: https://doi.org/10.5194/egusphere-2026-1081
    :alt: Paper
 
-.. image:: https://img.shields.io/badge/DOI-10.5281/zenodo.18761730-blue.svg
-   :target: https://doi.org/10.5281/zenodo.18761730
+.. image:: https://img.shields.io/badge/DOI-10.5281/zenodo.18761729-blue.svg
+   :target: https://doi.org/10.5281/zenodo.18761729
    :alt: Zenodo DOI
 
 .. image:: https://img.shields.io/github/v/release/Ruitangtang/oggm?label=stable&color=blue
@@ -23,15 +23,14 @@ This branch contains the OGGM core modifications used for the frontal ablation s
 - Frontal ablation module (SERMeQ) added to ice dynamics
 - Frontal ablation, terminus change hooks coupled with climatic mass balance, ice thickness, width, and ice velocity
 
-**Zenodo archive:** `10.5281/zenodo.18761730 <https://doi.org/10.5281/zenodo.18761730>`_
+**Full research archive:** `Zenodo concept DOI 10.5281/zenodo.18761729 <https://doi.org/10.5281/zenodo.18761729>`_
 
 **Stable release:** `v1.0.0-zenodo-frontal-ablation <https://github.com/Ruitangtang/oggm/releases/tag/v1.0.0-zenodo-frontal-ablation>`_
 
-🚀 For a complete, lightweight setup with sample data and reproduction notebooks, visit:  
-`frontal-ablation-module <https://github.com/Ruitangtang/frontal-ablation-module>`_
+🚀 Lightweight showcase repo: `frontal-ablation-glacier-demo <https://github.com/Ruitangtang/frontal-ablation-glacier-demo>`_ — YAML configs, dry-run quickstart commands, tests, method/results visuals, and reproducibility links.
 
 **Citation:**
-> [Authors]. *Joint Bayesian Calibration of Frontal Ablation and Surface Mass Balance in Global Glacier Models*. GMD Preprint, 2026. DOI: `10.5194/egusphere-2026-1081 <https://doi.org/10.5194/egusphere-2026-1081>`_
+> Yang et al.  *Joint Bayesian Calibration of Frontal Ablation and Surface Mass Balance in Global Glacier Models*. GMD Preprint, 2026. DOI: `10.5194/egusphere-2026-1081 <https://doi.org/10.5194/egusphere-2026-1081>`_
 
 
 -------------------------------------------------------------------------------------------------------------------------------------------
