@@ -103,10 +103,22 @@ class Flowline(Centerline):
         self.map_trafo = None
         if gdir is not None:
             gdir.settings_filesuffix = settings_filesuffix
-            self.settings = gdir.settings
+            settings = gdir.settings
             self.map_trafo = partial(gdir.grid.ij_to_crs, crs=salem.wgs84)
         else:
-            self.settings = cfg.PARAMS.copy()
+            settings = cfg.PARAMS
+        # a flowline only needs these two parameters (for its length), so we
+        # store them instead of a reference to the settings: the latter would
+        # be pickled with every flowline, together with everything it points
+        # to (the gdir, and a copy of cfg.PARAMS with its intersects_gdf)
+        try:
+            self.min_ice_thick_for_length = settings['min_ice_thick_for_length']
+        except KeyError:
+            self.min_ice_thick_for_length = 0
+        try:
+            self.glacier_length_method = settings['glacier_length_method']
+        except KeyError:
+            self.glacier_length_method = None
         # volume not yet removed from the flowline
         self.calving_bucket_m3 = 0
 
@@ -153,16 +165,14 @@ class Flowline(Centerline):
     def length_m(self):
         # TODO: take calving bucket into account for fine tuned length?
         try:
-            lt = self.settings['min_ice_thick_for_length']
-        except KeyError:
-            lt = 0
+            lt = self.min_ice_thick_for_length
         except AttributeError:
             # this is for backwards-compatibility with old gdirs
             lt = cfg.PARAMS.get('min_ice_thick_for_length', 0)
 
         # this is for backwards-compatibility with old gdirs
         try:
-            glacier_length_method = self.settings['glacier_length_method']
+            glacier_length_method = self.glacier_length_method
         except AttributeError:
             glacier_length_method = cfg.PARAMS.get('glacier_length_method')
 
@@ -180,16 +190,14 @@ class Flowline(Centerline):
         # the index of the last point with ice thickness above
         # min_ice_thick_for_length and consistent with length
         try:
-            lt = self.settings['min_ice_thick_for_length']
-        except KeyError:
-            lt = 0
+            lt = self.min_ice_thick_for_length
         except AttributeError:
             # this is for backwards-compatibility with old gdirs
             lt = cfg.PARAMS.get('min_ice_thick_for_length', 0)
 
         # this is for backwards-compatibility with old gdirs
         try:
-            glacier_length_method = self.settings['glacier_length_method']
+            glacier_length_method = self.glacier_length_method
         except AttributeError:
             glacier_length_method = cfg.PARAMS.get('glacier_length_method')
         if glacier_length_method == 'consecutive':
@@ -2726,14 +2734,14 @@ class SemiImplicitModel(FlowlineModel):
 
         # Calving params
         if do_calving is None:
-            do_calving = cfg.PARAMS['use_kcalving_for_run']
+            do_calving = self.settings['use_kcalving_for_run']
         self.calving_law = calving_law
-        self.do_calving = do_calving
+        self.do_calving = do_calving and self.is_tidewater
         if calving_k is None:
-            calving_k = cfg.PARAMS['calving_k']
+            calving_k = self.settings['calving_k']
         self.calving_k = calving_k / cfg.SEC_IN_YEAR
         if calving_use_limiter is None:
-            calving_use_limiter = cfg.PARAMS['calving_use_limiter']
+            calving_use_limiter = self.settings['calving_use_limiter']
         self.calving_use_limiter = calving_use_limiter
 
         # Flux gate bookkeeping
@@ -3885,7 +3893,7 @@ def decide_evolution_model(gdir=None, evolution_model=None):
     return evolution_model
 
 
-@entity_task(log)
+@entity_task(log, workflow_return_value=False)
 def flowline_model_run(gdir, settings_filesuffix='',
                        output_filesuffix=None, mb_model=None,
                        ys=None, ye=None, zero_initial_glacier=False,
@@ -4061,7 +4069,8 @@ def flowline_model_run(gdir, settings_filesuffix='',
 
     # ensure the flowlines are using the right settings
     for fl in fls:
-        fl.settings = gdir.settings
+        fl.min_ice_thick_for_length = gdir.settings['min_ice_thick_for_length']
+        fl.glacier_length_method = gdir.settings['glacier_length_method']
 
     if (gdir.settings['use_kcalving_for_run'] and gdir.is_tidewater and
             water_level is None):
@@ -4114,7 +4123,7 @@ def flowline_model_run(gdir, settings_filesuffix='',
     return model
 
 
-@entity_task(log)
+@entity_task(log, workflow_return_value=False)
 def run_random_climate(gdir, settings_filesuffix='',
                        nyears=1000, y0=None, halfsize=15,
                        ys=None, ye=None,
@@ -4250,7 +4259,7 @@ def run_random_climate(gdir, settings_filesuffix='',
                               **kwargs)
 
 
-@entity_task(log)
+@entity_task(log, workflow_return_value=False)
 def run_constant_climate(gdir, settings_filesuffix='',
                          nyears=1000, y0=None, halfsize=15,
                          ys=None, ye=None,
@@ -4374,7 +4383,7 @@ def run_constant_climate(gdir, settings_filesuffix='',
                               **kwargs)
 
 
-@entity_task(log)
+@entity_task(log, workflow_return_value=False)
 def run_from_climate_data(gdir, settings_filesuffix='',
                           ys=None, ye=None, min_ys=None, max_ys=None,
                           fixed_geometry_spinup_yr=None,
@@ -4579,6 +4588,26 @@ def run_with_hydro(gdir, settings_filesuffix='',
                    **kwargs):
     """Run the flowline model and add hydro diagnostics.
 
+    The on-glacier melt is corrected so that, together with the solid
+    precipitation, it matches the mass change of the dynamical model. For
+    this the run needs to store the total glacier mass, i.e. 'mass' must be
+    in PARAMS['store_diagnostic_variables'] (the default). Using the mass
+    (instead of the ice volume times a fixed ice density) also accounts for
+    mass balance models with a snow/firn bucket system (e.g.
+    ``SfcTypeTIModel``), where part of the glacier mass has a lower density.
+
+    If the mass balance model of the run tracks surface types (e.g.
+    ``SfcTypeTIModel``), the on-glacier melt is additionally split into
+    ``snow_melt_on_glacier`` (buckets younger than one year),
+    ``firn_melt_on_glacier`` (older buckets) and ``ice_melt_on_glacier``.
+    The three components are rescaled so that they always sum up to
+    ``melt_on_glacier`` (i.e. the residual and bias corrections are
+    distributed proportionally). For mass balance models without surface
+    type tracking these three variables are NaN. Note that for mass balance
+    models with a memory of the past (e.g. ``SfcTypeTIModel``),
+    ``use_previous_mbs`` is set to True after the dynamical run, because the
+    mass balance values stored during the run are revisited here.
+
     TODOs:
         - Add the possibility to record MB during run to improve performance
           (requires change in API)
@@ -4676,6 +4705,29 @@ def run_with_hydro(gdir, settings_filesuffix='',
     # Mass balance model used during the run
     mb_mod = out.mb_model
 
+    def _get_fl_mb_mod(fl_id):
+        # the mb model of a single flowline (mb models like SfcTypeTIModel
+        # work on the main flowline only and are not always wrapped)
+        if isinstance(mb_mod, MultipleFlowlineMassBalance):
+            return mb_mod.flowline_mb_models[fl_id]
+        return mb_mod
+
+    if isinstance(mb_mod, MultipleFlowlineMassBalance):
+        all_fl_mb_mods = mb_mod.flowline_mb_models
+    else:
+        all_fl_mb_mods = [mb_mod]
+
+    # Models with a memory of the past (e.g. SfcTypeTIModel) store their mb
+    # values during the dynamical run - here we revisit exactly those years,
+    # so we want the previously computed values back
+    for fl_mb_mod in all_fl_mb_mods:
+        if hasattr(fl_mb_mod, 'use_previous_mbs'):
+            fl_mb_mod.use_previous_mbs = True
+
+    # Can the mb model split the melt by surface type (snow/firn/ice)?
+    track_melt_components = all(hasattr(fl_mb_mod, 'get_annual_melt')
+                                for fl_mb_mod in all_fl_mb_mods)
+
     # Glacier geometry during the run
     suffix = kwargs.get('output_filesuffix', settings_filesuffix)
     if suffix is None:
@@ -4686,6 +4738,21 @@ def run_with_hydro(gdir, settings_filesuffix='',
     fmod = FileModel(gdir.get_filepath('model_geometry', filesuffix=suffix))
     # The last one is the final state - we can't compute MB for that
     years = fmod.years[:-1]
+
+    # Total glacier mass from the dynamical run - used below to correct the
+    # reconstructed mass balance for mass conservation. We use the mass (and
+    # not the ice volume times a fixed ice density), because for mb models
+    # with buckets (e.g. SfcTypeTIModel) part of the glacier mass is snow
+    # and firn with lower densities.
+    fpath_diag = gdir.get_filepath('model_diagnostics', filesuffix=suffix)
+    with xr.open_dataset(fpath_diag) as ds_diag:
+        if 'mass_kg' not in ds_diag:
+            raise InvalidWorkflowError(
+                'run_with_hydro needs the total glacier mass of the '
+                "dynamical run. Please add 'mass' to "
+                "PARAMS['store_diagnostic_variables'].")
+        model_mass_kg = dict(zip(ds_diag['time'].values,
+                                 ds_diag['mass_kg'].values))
 
     if ref_geometry_filesuffix:
         if not ref_area_from_y0 and ref_area_yr is None:
@@ -4818,9 +4885,22 @@ def run_with_hydro(gdir, settings_filesuffix='',
         },
     }
 
-    # Initialize
-    fmod.run_until(years[0])
-    prev_model_vol = fmod.volume_m3
+    # The melt split by surface type is only available for mb models with
+    # surface type tracking (e.g. SfcTypeTIModel), for all others it is NaN
+    for vn, desc in [
+            ('snow_melt_on_glacier',
+             'On-glacier melt of snow (buckets younger than one year)'),
+            ('firn_melt_on_glacier',
+             'On-glacier melt of firn (buckets older than one year)'),
+            ('ice_melt_on_glacier',
+             'On-glacier melt of ice'),
+    ]:
+        out[vn] = {
+            'description': desc,
+            'unit': 'kg yr-1',
+            'data': (np.zeros(oshape) if track_melt_components
+                     else np.full(oshape, np.nan)),
+        }
 
     for i, yr in enumerate(years):
 
@@ -4903,6 +4983,23 @@ def run_with_hydro(gdir, settings_filesuffix='',
                 off_area_out += np.sum(off_area)
                 on_area_out += np.sum(bin_area)
 
+                if track_melt_components:
+                    # Melt split by surface type in kg m-2 for this timestep
+                    # (the components are rescaled at the end of the year to
+                    # match the corrected melt_on_glacier)
+                    if store_monthly_hydro:
+                        s_melt, f_melt, i_melt = \
+                            _get_fl_mb_mod(fl_id).get_monthly_melt(flt_yr)
+                    else:
+                        s_melt, f_melt, i_melt = \
+                            _get_fl_mb_mod(fl_id).get_annual_melt(yr)
+                    out['snow_melt_on_glacier']['data'][i, m-1] += \
+                        np.sum(s_melt * bin_area)
+                    out['firn_melt_on_glacier']['data'][i, m-1] += \
+                        np.sum(f_melt * bin_area)
+                    out['ice_melt_on_glacier']['data'][i, m-1] += \
+                        np.sum(i_melt * bin_area)
+
                 # Monthly out
                 out['melt_off_glacier']['data'][i, m-1] += np.sum(melt_off_g)
                 out['melt_on_glacier']['data'][i, m-1] += np.sum(melt_on_g)
@@ -4952,10 +5049,11 @@ def run_with_hydro(gdir, settings_filesuffix='',
             model_mb = (out['snowfall_on_glacier']['data'][i, :].sum() -
                         out['melt_on_glacier']['data'][i, :].sum())
         else:
-            # Correct for mass-conservation and match the ice-dynamics model
-            fmod.run_until(yr + 1)
-            model_mb = (fmod.volume_m3 - prev_model_vol) * gdir.settings['ice_density']
-            prev_model_vol = fmod.volume_m3
+            # Correct for mass-conservation and match the dynamical model.
+            # We use the total glacier mass change of the run, which also
+            # includes the snow and firn buckets for mb models with surface
+            # type tracking (e.g. SfcTypeTIModel)
+            model_mb = model_mass_kg[yr + 1] - model_mass_kg[yr]
 
             reconstructed_mb = (out['snowfall_on_glacier']['data'][i, :].sum() -
                                 out['melt_on_glacier']['data'][i, :].sum())
@@ -4995,6 +5093,26 @@ def run_with_hydro(gdir, settings_filesuffix='',
 
         out['model_mb']['data'][i] = model_mb
         out['residual_mb']['data'][i] = residual_mb
+
+        if track_melt_components:
+            # Rescale the melt components so they always sum up to the
+            # corrected melt_on_glacier (this distributes the residual and
+            # bias corrections proportionally to the components)
+            final_melt = out['melt_on_glacier']['data'][i, :]
+            comp_sum = (out['snow_melt_on_glacier']['data'][i, :] +
+                        out['firn_melt_on_glacier']['data'][i, :] +
+                        out['ice_melt_on_glacier']['data'][i, :])
+            has_comp = comp_sum > 0
+            fac = np.where(has_comp,
+                           final_melt / np.where(has_comp, comp_sum, 1),
+                           0)
+            for vn in ['snow_melt_on_glacier', 'firn_melt_on_glacier',
+                       'ice_melt_on_glacier']:
+                out[vn]['data'][i, :] *= fac
+            # if the corrections produced melt where no component melt was
+            # computed, we attribute it to ice melt to conserve the sum
+            out['ice_melt_on_glacier']['data'][i, :] += \
+                np.where(has_comp, 0, final_melt)
 
     # Convert to xarray
     out_vars = gdir.settings['store_diagnostic_variables']

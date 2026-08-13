@@ -163,6 +163,10 @@ def execute_entity_task(task, gdirs, **kwargs):
     Returns
     -------
     List of results from task. Last task if a list of tasks was given.
+    Tasks declared with ``@entity_task(log, workflow_return_value=False)``
+    (the ``run_*`` tasks, whose model objects are expensive to keep around)
+    return a list of ``None`` instead - pass ``return_value=True`` to get
+    them anyway.
     """
 
     # Normalize task into list of tuples for simplicity
@@ -180,6 +184,23 @@ def execute_entity_task(task, gdirs, **kwargs):
         if t[0].__dict__.get('is_global_task', False):
             raise InvalidWorkflowError('execute_entity_task cannot be used on '
                                        'global tasks.')
+
+    # Some tasks return objects which are useless here but expensive to keep
+    # around (the run_* tasks return the full model, mass balance model
+    # included). With multiprocessing these are pickled back to the main
+    # process and stored in a list of one element per glacier - for large
+    # regions this alone is enough to run out of memory. Unless the caller
+    # explicitly asked for the values, we tell those tasks not to return
+    # anything. This is decided per task and applied with and without
+    # multiprocessing, so that the outcome does not depend on it.
+    if 'return_value' not in kwargs:
+        for i, (t, t_kwargs) in enumerate(tasks):
+            if getattr(t, 'workflow_return_value', True):
+                continue
+            if 'return_value' in t_kwargs:
+                continue
+            # copy: the dict may belong to the caller
+            tasks[i] = (t, _merge_dicts(t_kwargs, {'return_value': False}))
 
     # Should be iterable
     gdirs = utils.tolist(gdirs)
@@ -461,7 +482,7 @@ def init_glacier_directories(rgidf=None, *, reset=False, force=False,
         else:
             # We can set the intersects file automatically here
             if (cfg.PARAMS['use_intersects'] and
-                    len(cfg.PARAMS['intersects_gdf']) == 0 and
+                    len(cfg.INTERSECTS_GDF) == 0 and
                     not from_tar):
                 try:
                     rgi_ids = np.unique(np.sort([entity.rgi_id for entity in
@@ -855,7 +876,7 @@ def calibrate_inversion_from_ref_table(gdirs, settings_filesuffix='',
         if ref_volume_m3 is not None and ref_table is None:
             df = pd.DataFrame(index=rids_use)
             ref_col = None
-        else:
+        elif ref_volume_m3 is None and ref_table is not None:
             # Get the ref data for the glaciers we have
             df, ref_col = _resolve_ref_volume_table(gdirs, ref_table)
 
@@ -867,6 +888,9 @@ def calibrate_inversion_from_ref_table(gdirs, settings_filesuffix='',
                                            'ignore this error.')
 
             df = df.reindex(rids)
+        else:
+            raise ValueError("You either need to provide a ref_volume_m3 or a "
+                             "ref_table!")
     else:
         ref_volume_m3_file = sum([gdir.observations['ref_volume_m3']['value']
                                   for gdir in gdirs_use])
@@ -1011,7 +1035,7 @@ def calibrate_inversion_from_ref_table(gdirs, settings_filesuffix='',
 @global_task(log)
 def calibrate_inversion_from_consensus(gdirs, settings_filesuffix='',
                                        observations_filesuffix='',
-                                       overwrite_observations=False,
+                                       overwrite_observations=True,
                                        input_filesuffix=None,
                                        output_filesuffix=None,
                                        ignore_missing=True,
