@@ -540,7 +540,7 @@ class MixedBedFlowline(Flowline):
         # Here we have to compute the widths out of section and lambda
         thick = surface_h - bed_h
         with np.errstate(divide='ignore', invalid='ignore'):
-            self._w0_m = section / thick - lambdas * thick / 2
+            self._w0_m = (section - lambdas * thick**2 / 2) / thick
 
         assert np.all(section >= 0)
         need_w = (section == 0) & is_trapezoid
@@ -3705,6 +3705,65 @@ def init_present_time_glacier(gdir, settings_filesuffix='',
 
             # Where the flux and the thickness is zero we just assume trapezoid:
             lambdas[bed_shape == 0] = def_lambda
+
+            # A sloping trapezoid requires:
+            # section > lambda * thickness**2 / 2.
+            # At the exact boundary, floating-point cancellation can make
+            # the computed origin width zero or slightly negative.
+            sloping_trapezoid = (
+                np.isfinite(lambdas)
+                & (lambdas > 0)
+                & (inv['thick'] > 0)
+            )
+
+            if np.any(sloping_trapezoid):
+                trap_idx = np.flatnonzero(sloping_trapezoid)
+
+                current_section = np.asarray(
+                    section[trap_idx],
+                    dtype=np.float64,
+                ).copy()
+                trap_thick = np.asarray(
+                    inv['thick'][trap_idx],
+                    dtype=np.float64,
+                )
+                trap_lambda = np.asarray(
+                    lambdas[trap_idx],
+                    dtype=np.float64,
+                )
+
+                minimum_section = (
+                    trap_lambda * trap_thick**2 / 2
+                )
+
+                scale = np.maximum.reduce([
+                    np.ones_like(current_section),
+                    np.abs(current_section),
+                    np.abs(minimum_section),
+                ])
+                tolerance = (
+                    16 * np.finfo(np.float64).eps * scale
+                )
+
+                materially_invalid = (
+                    current_section
+                    < minimum_section - tolerance
+                )
+
+                if np.any(materially_invalid):
+                    bad_idx = trap_idx[materially_invalid]
+                    raise ValueError(
+                        'Trapezoid section is materially below its '
+                        f'physical minimum at indices {bad_idx.tolist()}.'
+                    )
+
+                boundary = current_section <= minimum_section
+                current_section[boundary] = np.nextafter(
+                    minimum_section[boundary],
+                    np.inf,
+                )
+
+                section[trap_idx] = current_section
 
         else:
             # here we use binned thickness data for the initialisation
