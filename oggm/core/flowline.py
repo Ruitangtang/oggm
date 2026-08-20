@@ -3644,6 +3644,69 @@ def calving_glacier_downstream_line(line, n_points):
     return shpg.LineString(np.array([x, y]).T)
 
 
+def stabilize_trapezoid_section(section, surface_h, bed_h, lambdas,
+                                rgi_id=''):
+    """Keeps trapezoid sections above their physical minimum.
+
+    A sloping trapezoid requires ``section > lambda * thick**2 / 2``, i.e. a
+    strictly positive origin width. The inversion can land exactly on that
+    boundary, since it brackets the thickness at ``width / lambda`` (where
+    ``w0 = 0``), and there floating point cancellation can make the origin
+    width computed by :py:class:`MixedBedFlowline` zero or slightly negative.
+
+    Sections which are only a few ulp below the minimum are numerical noise
+    and are nudged back just above it (a degenerate, triangular trapezoid).
+    Sections which are materially below it are a real inconsistency and raise.
+
+    Note that the minimum has to be computed from the thickness as
+    ``MixedBedFlowline`` recomputes it (``surface_h - bed_h``), which is not
+    always bit-identical to the inverted thickness. Using the latter, the
+    correction can be undone by the round trip and the origin width still
+    comes out as zero or negative.
+
+    Parameters
+    ----------
+    section : ndarray
+        the cross-sections along the flowline (m2)
+    surface_h : ndarray
+        the surface elevations along the flowline (m)
+    bed_h : ndarray
+        the bed elevations along the flowline (m)
+    lambdas : ndarray
+        the trapezoid lambdas (nan for non-trapezoid grid points)
+    rgi_id : str
+        for a more informative error message
+
+    Returns
+    -------
+    the corrected sections (m2)
+    """
+
+    thick = surface_h - bed_h
+    is_sloping_trap = np.isfinite(lambdas) & (lambdas > 0) & (thick > 0)
+    min_section = lambdas * thick ** 2 / 2
+
+    # `thick` is a difference of two elevations, so its own rounding error
+    # scales with the elevation, not with the thickness: a thin trapezoid
+    # high up in the mountains has a much larger absolute uncertainty on its
+    # minimum section than `min_section` alone would suggest.
+    eps = np.finfo(np.float64).eps
+    scale = min_section + lambdas * thick * np.maximum(np.abs(surface_h),
+                                                       np.abs(bed_h))
+    tol = 16 * eps * np.maximum(1, scale)
+    invalid = is_sloping_trap & (section < min_section - tol)
+    if np.any(invalid):
+        raise ValueError(f'({rgi_id}) the trapezoid section is below its '
+                         'physical minimum (lambda * thick**2 / 2) at grid '
+                         f'points {np.flatnonzero(invalid).tolist()}.')
+
+    at_boundary = is_sloping_trap & (section <= min_section)
+    if np.any(at_boundary):
+        section = np.where(at_boundary, min_section * (1 + 64 * eps), section)
+
+    return section
+
+
 @entity_task(log, writes=['model_flowlines'])
 def init_present_time_glacier(gdir, settings_filesuffix='',
                               input_filesuffix=None, output_filesuffix=None,
@@ -3714,64 +3777,8 @@ def init_present_time_glacier(gdir, settings_filesuffix='',
             # Where the flux and the thickness is zero we just assume trapezoid:
             lambdas[bed_shape == 0] = def_lambda
 
-            # A sloping trapezoid requires:
-            # section > lambda * thickness**2 / 2.
-            # At the exact boundary, floating-point cancellation can make
-            # the computed origin width zero or slightly negative.
-            sloping_trapezoid = (
-                np.isfinite(lambdas)
-                & (lambdas > 0)
-                & (inv['thick'] > 0)
-            )
-
-            if np.any(sloping_trapezoid):
-                trap_idx = np.flatnonzero(sloping_trapezoid)
-
-                current_section = np.asarray(
-                    section[trap_idx],
-                    dtype=np.float64,
-                ).copy()
-                trap_thick = np.asarray(
-                    inv['thick'][trap_idx],
-                    dtype=np.float64,
-                )
-                trap_lambda = np.asarray(
-                    lambdas[trap_idx],
-                    dtype=np.float64,
-                )
-
-                minimum_section = (
-                    trap_lambda * trap_thick**2 / 2
-                )
-
-                scale = np.maximum.reduce([
-                    np.ones_like(current_section),
-                    np.abs(current_section),
-                    np.abs(minimum_section),
-                ])
-                tolerance = (
-                    16 * np.finfo(np.float64).eps * scale
-                )
-
-                materially_invalid = (
-                    current_section
-                    < minimum_section - tolerance
-                )
-
-                if np.any(materially_invalid):
-                    bad_idx = trap_idx[materially_invalid]
-                    raise ValueError(
-                        'Trapezoid section is materially below its '
-                        f'physical minimum at indices {bad_idx.tolist()}.'
-                    )
-
-                boundary = current_section <= minimum_section
-                current_section[boundary] = np.nextafter(
-                    minimum_section[boundary],
-                    np.inf,
-                )
-
-                section[trap_idx] = current_section
+            section = stabilize_trapezoid_section(
+                section, surface_h, bed_h, lambdas, rgi_id=gdir.rgi_id)
 
         else:
             # here we use binned thickness data for the initialisation
